@@ -1,6 +1,4 @@
-use crate::{
-  Context, DynEndpoint, Endpoint, HyperRequest, Middleware, Next, Response, Result,
-};
+use crate::{Context, DynEndpoint, Endpoint, HyperRequest, Middleware, Next, Response, Result};
 use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::sync::Arc;
@@ -71,12 +69,11 @@ impl Router {
   pub fn connect(&mut self, route: &str, dest: impl Endpoint) {
     self.at(hyper::Method::CONNECT, route, dest);
   }
+  pub fn with(&mut self, middleware: impl Middleware) {
+    self.middlewares.push(Arc::new(middleware));
+  }
 
-  pub async fn dispatch(
-    &self,
-    req: HyperRequest,
-    remote_addr: Option<SocketAddr>,
-  ) -> Result {
+  pub async fn dispatch(&self, req: HyperRequest, remote_addr: Option<SocketAddr>) -> Result {
     let method = req.method();
     let path = req.uri().path();
 

@@ -1,19 +1,21 @@
 #![deny(warnings)]
 #![warn(rust_2018_idioms)]
-use desire::server::Server;
+mod middleware;
+
 use desire::types::Result;
 use desire::Context;
 use desire::Response;
-use desire::StatusCode;
 use desire::Router;
+use desire::StatusCode;
 #[tokio::main]
 async fn main() -> Result<()> {
-  let mut router = Router::new();
-  router.get("/", echo_hello);
-  router.get("/liveness", liveness);
+  let mut app = Router::new();
+  app.get("/", echo_hello);
+  app.get("/liveness", liveness);
+  app.with(middleware::Logger);
   let addr = "127.0.0.1:1337".parse()?;
-  let serve = Server::new(addr);
-  serve.run(router).await?;
+  let serve = desire::new(addr);
+  serve.run(app).await?;
   println!("hello");
   Ok(())
 }

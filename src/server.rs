@@ -42,7 +42,7 @@ pub struct Server {
   addr: SocketAddr,
 }
 impl Server {
-  pub fn new(addr: SocketAddr) -> Self {
+  pub fn bind(addr: SocketAddr) -> Self {
     Server { addr }
   }
 

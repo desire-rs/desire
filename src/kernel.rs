@@ -102,12 +102,14 @@ where
 
 pub struct Next<'a> {
   pub endpoint: &'a DynEndpoint,
-  pub middlewares: &'a Vec<Arc<dyn Middleware>>,
+  pub middlewares: &'a [Arc<dyn Middleware>],
 }
 
 impl Next<'_> {
-  pub async fn run(self, ctx: Context) -> Result {
-    if let Some((cur, _next)) = self.middlewares.split_first() {
+  pub async fn run(mut self, ctx: Context) -> Result {
+    if let Some((cur, next)) = self.middlewares.split_first() {
+      self.middlewares = next;
+      println!("run 1");
       cur.handle(ctx, self).await
     } else {
       self.endpoint.call(ctx).await
