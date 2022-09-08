@@ -16,6 +16,14 @@ name = "desire"
 readme = "README.md"
 repository = "https://github.com/desire-rs/desire"
 version = "0.0.1"
+publish = false # no accidents while in dev
+
+include = [
+  "Cargo.toml",
+  "LICENSE",
+  "src/**/*",
+  #"build.rs",
+]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -42,6 +50,13 @@ uuid = {version = "1.1.2", features = ["serde", "v4"]}
 [dev-dependencies]
 pretty_env_logger = "0.4.0"
 tokio-stream = {version = "0.1", features = ["net"]}
+
+
+
+[features]
+# Nothing by default
+default = []
+
 [[example]]
 name = "web"
 path = "examples/web.rs"

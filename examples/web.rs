@@ -1,3 +1,6 @@
+#![deny(warnings)]
+#![warn(rust_2018_idioms)]
+
 use desire::server::Server;
 use desire::types::Result;
 use desire::Context;

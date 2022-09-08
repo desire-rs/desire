@@ -5,6 +5,6 @@ pub mod server;
 pub mod types;
 
 pub use error::Error;
-pub use kernel::{Context, DynEndpoint, Endpoint, Middleware, Next, Response};
+pub use kernel::{Context, DynEndpoint, Endpoint, IntoResponse, Middleware, Next, Response};
 pub use router::Router;
 pub use types::{AnyResult, HyperRequest, HyperResponse, Result};

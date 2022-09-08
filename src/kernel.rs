@@ -33,6 +33,7 @@ impl From<HyperResponse> for Response {
     Response { inner: res }
   }
 }
+
 impl Response {
   pub fn new(res: HyperResponse) -> Self {
     Response { inner: res }
@@ -51,6 +52,9 @@ impl Response {
       .unwrap()
       .into()
   }
+}
+pub trait IntoResponse {
+  fn into_response(&self) -> Result<Response>;
 }
 
 #[async_trait::async_trait]
