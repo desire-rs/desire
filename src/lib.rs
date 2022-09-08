@@ -8,3 +8,7 @@ pub use error::Error;
 pub use kernel::{Context, DynEndpoint, Endpoint, IntoResponse, Middleware, Next, Response};
 pub use router::Router;
 pub use types::{AnyResult, HyperRequest, HyperResponse, Result};
+
+// re-export
+
+pub use hyper::{Method, StatusCode};

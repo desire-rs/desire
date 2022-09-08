@@ -1,10 +1,10 @@
 #![deny(warnings)]
 #![warn(rust_2018_idioms)]
-
 use desire::server::Server;
 use desire::types::Result;
 use desire::Context;
 use desire::Response;
+use desire::StatusCode;
 use desire::Router;
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -21,14 +21,14 @@ async fn main() -> Result<()> {
 pub async fn echo_hello(_ctx: Context) -> Result<Response> {
   let msg = "Hello World!";
   Ok(Response::with_status(
-    hyper::StatusCode::from_u16(200).unwrap(),
+    StatusCode::from_u16(200).unwrap(),
     msg.to_string(),
   ))
 }
 pub async fn liveness(_ctx: Context) -> Result<Response> {
   let msg = "this is liveness!";
   Ok(Response::with_status(
-    hyper::StatusCode::from_u16(200).unwrap(),
+    StatusCode::from_u16(200).unwrap(),
     msg.to_string(),
   ))
 }

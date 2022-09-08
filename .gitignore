@@ -14,5 +14,7 @@ Cargo.lock
 
 /target
 /Cargo.lock
-
+/examples/target
+/examples/*/target
 .cargo-ok
+.DS_Store

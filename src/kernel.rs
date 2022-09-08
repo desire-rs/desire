@@ -1,13 +1,17 @@
 use crate::{HyperRequest, HyperResponse, Result};
 use bytes::Bytes;
 use http_body_util::Full;
+use hyper::StatusCode;
+use route_recognizer::Params;
+use serde::Serialize;
 use std::future::Future;
 use std::net::SocketAddr;
 use std::pin::Pin;
 use std::sync::Arc;
+
 pub struct Context {
   pub inner: HyperRequest,
-  pub params: route_recognizer::Params,
+  pub params: Params,
   pub remote_addr: Option<SocketAddr>,
 }
 
@@ -15,9 +19,15 @@ impl Context {
   pub fn new(req: HyperRequest, remote_addr: Option<SocketAddr>) -> Self {
     Context {
       inner: req,
-      params: route_recognizer::Params::new(),
+      params: Params::new(),
       remote_addr,
     }
+  }
+  pub fn set_params(&mut self, params: Params) {
+    self.params = params;
+  }
+  pub fn get_params(&self) -> &Params {
+    &self.params
   }
   pub fn request(&self) -> &HyperRequest {
     &self.inner
@@ -49,6 +59,18 @@ impl Response {
       )
       .status(status)
       .body(Full::new(Bytes::from(val)))
+      .unwrap()
+      .into()
+  }
+
+  pub fn json<T: Serialize + Send>(val: T) -> Self {
+    hyper::http::Response::builder()
+      .header(
+        hyper::header::CONTENT_TYPE,
+        mime::APPLICATION_JSON.to_string(),
+      )
+      .status(StatusCode::OK)
+      .body(Full::new(Bytes::from(serde_json::to_string(&val).unwrap())))
       .unwrap()
       .into()
   }
