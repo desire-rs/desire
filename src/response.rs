@@ -48,6 +48,19 @@ impl From<HyperResponse> for Response {
   }
 }
 
+impl From<()> for Response {
+  fn from(_: ()) -> Self {
+    hyper::http::Response::builder()
+      .header(
+        hyper::header::CONTENT_TYPE,
+        mime::TEXT_PLAIN_UTF_8.to_string(),
+      )
+      .body(Full::new(Bytes::default()))
+      .unwrap()
+      .into()
+  }
+}
+
 impl From<String> for Response {
   fn from(val: String) -> Self {
     hyper::http::Response::builder()
