@@ -17,16 +17,16 @@ pub async fn get_user_by_id(req: Request) -> Result {
   let method = req.method().to_string();
   info!("method: {}", method);
   let id = req.get_param::<String>("id")?;
-  Ok(Resp::data(id).into())
+  Resp::data(id).into()
 }
 
 pub async fn get_query(req: Request) -> Result {
   let query = req.get_query::<QueryUser>()?;
   info!("query {:?}", query);
-  Ok(Resp::data(query).into())
+  Resp::data(query).into()
 }
 pub async fn create_users(req: Request) -> Result {
   let user = req.body::<User>().await?;
   info!("user: {:?}", user);
-  Ok(Resp::data(user).into())
+  Resp::data(user).into()
 }
