@@ -1,11 +1,17 @@
+pub mod context;
 pub mod error;
 pub mod kernel;
+pub mod request;
+pub mod response;
 pub mod router;
 pub mod server;
 pub mod types;
+pub mod utils;
 
 pub use error::Error;
-pub use kernel::{Context, DynEndpoint, Endpoint, IntoResponse, Middleware, Next};
+pub use kernel::{DynEndpoint, Endpoint, IntoResponse, Middleware, Next};
+pub use context::Context;
+pub use response::Response;
 pub use router::Router;
 pub use server::Server;
 use std::net::SocketAddr;

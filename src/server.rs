@@ -1,3 +1,4 @@
+use crate::Context;
 use crate::HyperRequest;
 use crate::HyperResponse;
 use crate::Result;
@@ -8,13 +9,12 @@ use std::future::Future;
 use std::net::SocketAddr;
 use std::pin::Pin;
 use std::sync::Arc;
-use std::task::Context;
 use std::task::Poll;
 use tokio::net::TcpListener;
 use tracing::{error, info};
-
 pub struct Svc {
   pub router: Arc<Router>,
+  pub remote_addr: Arc<SocketAddr>,
 }
 
 impl Service<HyperRequest> for Svc {
@@ -22,20 +22,25 @@ impl Service<HyperRequest> for Svc {
   type Error = crate::error::Error;
   type Future = Pin<Box<dyn Future<Output = Result<Self::Response>> + Send>>;
 
-  fn poll_ready(&mut self, _: &mut Context) -> Poll<Result<()>> {
+  fn poll_ready(&mut self, _: &mut std::task::Context) -> Poll<Result<()>> {
     Poll::Ready(Ok(()))
   }
 
   fn call(&mut self, req: HyperRequest) -> Self::Future {
     let router = self.router.clone();
-    let res = dispatch(req, router);
+    let remote_addr = self.remote_addr.clone();
+    let res = dispatch(req, remote_addr, router);
     Box::pin(async { res.await })
   }
 }
 
-pub async fn dispatch(req: HyperRequest, router: Arc<Router>) -> Result<HyperResponse> {
-  match router.dispatch(req, None).await {
-    Ok(ctx) => Ok(ctx.response.unwrap()),
+pub async fn dispatch(
+  req: HyperRequest,
+  remote_addr: Arc<SocketAddr>,
+  router: Arc<Router>,
+) -> Result<HyperResponse> {
+  match router.dispatch(req, remote_addr).await {
+    Ok(response) => Ok(response.inner),
     Err(err) => Err(err.into()),
   }
 }
@@ -55,9 +60,19 @@ impl Server {
     let router = Arc::new(router);
     loop {
       let router = router.clone();
-      let (stream, _) = listener.accept().await?;
+      let (stream, remote_addr) = listener.accept().await?;
+      let remote_addr = Arc::new(remote_addr);
       tokio::task::spawn(async move {
-        if let Err(err) = Http::new().serve_connection(stream, Svc { router }).await {
+        if let Err(err) = Http::new()
+          .serve_connection(
+            stream,
+            Svc {
+              router,
+              remote_addr,
+            },
+          )
+          .await
+        {
           error!("Failed to serve connection: {:?}", err);
         }
       });

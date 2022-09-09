@@ -1,4 +1,9 @@
-use crate::{Context, DynEndpoint, Endpoint, HyperRequest, Middleware, Next, Result};
+use bytes::Bytes;
+use http_body_util::Full;
+
+use crate::{
+  Context, DynEndpoint, Endpoint, HyperRequest, HyperResponse, Middleware, Next, Result,
+};
 use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::sync::Arc;
@@ -9,11 +14,8 @@ pub struct Router {
   pub not_found_handler: Box<DynEndpoint>,
 }
 
-async fn default_handler(_ctx: Context) -> Result {
-  Ok(Context::with_status(
-    hyper::StatusCode::from_u16(404).unwrap(),
-    "handler not found".to_string(),
-  ))
+async fn default_handler(_req: HyperRequest, _ctx: Context) -> Result {
+  Ok("handle not found".into())
 }
 
 impl Router {
@@ -75,7 +77,7 @@ impl Router {
     self.middlewares.push(Arc::new(middleware));
   }
 
-  pub async fn dispatch(&self, req: HyperRequest, remote_addr: Option<SocketAddr>) -> Result {
+  pub async fn dispatch(&self, req: HyperRequest, remote_addr: Arc<SocketAddr>) -> Result {
     let method = req.method();
     let path = req.uri().path();
 
@@ -91,12 +93,12 @@ impl Router {
       None => &*self.not_found_handler,
     };
 
-    let mut ctx = Context::new(req);
-    ctx.params = Some(params);
+    let mut ctx = Context::new(remote_addr);
+    ctx.params = params;
     let next = Next {
       endpoint: endpoint,
       middlewares: &self.middlewares,
     };
-    next.run(ctx).await
+    next.run(req, ctx).await
   }
 }
