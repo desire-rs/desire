@@ -10,46 +10,38 @@ use std::pin::Pin;
 use std::sync::Arc;
 
 pub struct Context {
-  pub inner: HyperRequest,
-  pub params: Params,
+  pub request: Option<HyperRequest>,
+  pub response: Option<HyperResponse>,
+  pub params: Option<Params>,
   pub remote_addr: Option<SocketAddr>,
 }
 
 impl Context {
-  pub fn new(req: HyperRequest, remote_addr: Option<SocketAddr>) -> Self {
+  pub fn new(req: HyperRequest) -> Self {
     Context {
-      inner: req,
-      params: Params::new(),
-      remote_addr,
+      request: Some(req),
+      response: None,
+      params: None,
+      remote_addr: None,
     }
   }
   pub fn set_params(&mut self, params: Params) {
-    self.params = params;
+    self.params = Some(params);
   }
-  pub fn get_params(&self) -> &Params {
+  pub fn set_response(&mut self, response: HyperResponse) {
+    self.response = Some(response);
+  }
+  pub fn set_request(&mut self, request: HyperRequest) {
+    self.request = Some(request);
+  }
+  pub fn get_params(&self) -> &Option<Params> {
     &self.params
   }
-  pub fn request(&self) -> &HyperRequest {
-    &self.inner
+  pub fn request(&self) -> &Option<HyperRequest> {
+    &self.request
   }
-}
-
-pub struct Response {
-  pub inner: HyperResponse,
-}
-
-impl From<HyperResponse> for Response {
-  fn from(res: HyperResponse) -> Self {
-    Response { inner: res }
-  }
-}
-
-impl Response {
-  pub fn new(res: HyperResponse) -> Self {
-    Response { inner: res }
-  }
-  pub fn response(&self) -> &HyperResponse {
-    &self.inner
+  pub fn response(&self) -> &Option<HyperResponse> {
+    &self.response
   }
   pub fn with_status(status: hyper::StatusCode, val: String) -> Self {
     hyper::http::Response::builder()
@@ -75,8 +67,33 @@ impl Response {
       .into()
   }
 }
-pub trait IntoResponse {
-  fn into_response(&self) -> Result<Response>;
+
+impl From<HyperResponse> for Context {
+  fn from(response: HyperResponse) -> Self {
+    Context {
+      response: Some(response),
+      request: None,
+      params: None,
+      remote_addr: None,
+    }
+  }
+}
+
+impl From<&str> for Context {
+  fn from(msg: &str) -> Self {
+    Context::with_status(StatusCode::from_u16(200).unwrap(), msg.to_string())
+  }
+}
+
+impl From<String> for Context {
+  fn from(msg: String) -> Self {
+    Context::with_status(StatusCode::from_u16(200).unwrap(), msg)
+  }
+}
+
+#[async_trait::async_trait]
+pub trait IntoResponse: Send + Sync + 'static {
+  async fn into_response(&self) -> Result;
 }
 
 #[async_trait::async_trait]
@@ -91,7 +108,7 @@ impl<F, Fut, Res> Endpoint for F
 where
   F: Send + Sync + 'static + Fn(Context) -> Fut,
   Fut: Future<Output = Result<Res>> + Send + Sync + 'static,
-  Res: Into<Response> + 'static,
+  Res: Into<Context> + 'static,
 {
   async fn call(&self, ctx: Context) -> Result {
     let fut = (self)(ctx);

@@ -1,4 +1,4 @@
-use crate::{Context, DynEndpoint, Endpoint, HyperRequest, Middleware, Next, Response, Result};
+use crate::{Context, DynEndpoint, Endpoint, HyperRequest, Middleware, Next, Result};
 use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::sync::Arc;
@@ -10,7 +10,7 @@ pub struct Router {
 }
 
 async fn default_handler(_ctx: Context) -> Result {
-  Ok(Response::with_status(
+  Ok(Context::with_status(
     hyper::StatusCode::from_u16(404).unwrap(),
     "handler not found".to_string(),
   ))
@@ -65,7 +65,9 @@ impl Router {
   pub fn head(&mut self, route: &str, dest: impl Endpoint) {
     self.at(hyper::Method::HEAD, route, dest);
   }
-
+  pub fn trace(&mut self, route: &str, dest: impl Endpoint) {
+    self.at(hyper::Method::TRACE, route, dest);
+  }
   pub fn connect(&mut self, route: &str, dest: impl Endpoint) {
     self.at(hyper::Method::CONNECT, route, dest);
   }
@@ -89,8 +91,8 @@ impl Router {
       None => &*self.not_found_handler,
     };
 
-    let mut ctx = Context::new(req, remote_addr);
-    ctx.params = params;
+    let mut ctx = Context::new(req);
+    ctx.params = Some(params);
     let next = Next {
       endpoint: endpoint,
       middlewares: &self.middlewares,

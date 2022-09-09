@@ -34,8 +34,10 @@ impl Service<HyperRequest> for Svc {
 }
 
 pub async fn dispatch(req: HyperRequest, router: Arc<Router>) -> Result<HyperResponse> {
-  let res = router.dispatch(req, None).await?;
-  Ok(res.inner)
+  match router.dispatch(req, None).await {
+    Ok(ctx) => Ok(ctx.response.unwrap()),
+    Err(err) => Err(err.into()),
+  }
 }
 
 pub struct Server {
