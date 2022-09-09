@@ -19,7 +19,7 @@ pub type DynEndpoint = dyn Endpoint;
 impl<F, Fut, Res> Endpoint for F
 where
   F: Send + Sync + 'static + Fn(Request) -> Fut,
-  Fut: Future<Output = Result<Res>> + Send + Sync + 'static,
+  Fut: Future<Output = Result<Res>> + Send  + 'static,
   Res: Into<Response> + 'static,
 {
   async fn call(&self, req: Request) -> Result {

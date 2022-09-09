@@ -4,7 +4,8 @@ use tracing::info;
 pub async fn hello(req: Request) -> Result {
   let method = req.method().to_string();
   let msg = "hello world";
-  println!("method: {}", method);
+  let remote = req.remote_addr;
+  println!("method: {} {:?}", method, remote);
   Ok(Resp::data(msg).into())
 }
 
