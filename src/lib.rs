@@ -1,4 +1,3 @@
-pub mod context;
 pub mod error;
 pub mod kernel;
 pub mod request;
@@ -8,7 +7,6 @@ pub mod server;
 pub mod types;
 pub mod utils;
 
-pub use context::Context;
 pub use error::Error;
 pub use kernel::{DynEndpoint, Endpoint, IntoResponse, Middleware, Next};
 pub use request::Request;
