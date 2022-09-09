@@ -1,4 +1,3 @@
-use crate::Context;
 use crate::HyperRequest;
 use crate::HyperResponse;
 use crate::Result;
@@ -39,7 +38,7 @@ pub async fn dispatch(
   remote_addr: Arc<SocketAddr>,
   router: Arc<Router>,
 ) -> Result<HyperResponse> {
-  match router.dispatch(req, remote_addr).await {
+  match router.dispatch(req.into(), remote_addr).await {
     Ok(response) => Ok(response.inner),
     Err(err) => Err(err.into()),
   }

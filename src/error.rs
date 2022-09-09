@@ -1,5 +1,4 @@
 use crate::Response;
-use crate::StatusCode;
 use thiserror::Error;
 #[derive(Debug, Error)]
 pub enum Error {
@@ -11,6 +10,8 @@ pub enum Error {
   IOError(#[from] std::io::Error),
   #[error("any error")]
   AnyError(#[from] anyhow::Error),
+  #[error("query error")]
+  UrlencodedError(#[from] serde_urlencoded::de::Error),
   #[error("addr parse error")]
   AddrParseError(#[from] std::net::AddrParseError),
   #[error("missing url param {name:?}")]
@@ -25,9 +26,15 @@ pub enum Error {
   Message { msg: String },
 }
 
-pub fn miss_param(name: &str) -> Error {
+pub fn missing_param(name: &str) -> Error {
   Error::MissingParam {
     name: name.to_string(),
+  }
+}
+
+pub fn error_msg(msg: &str) -> Error {
+  Error::Message {
+    msg: msg.to_string(),
   }
 }
 

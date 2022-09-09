@@ -1,9 +1,4 @@
-use bytes::Bytes;
-use http_body_util::Full;
-
-use crate::{
-  Context, DynEndpoint, Endpoint, HyperRequest, HyperResponse, Middleware, Next, Result,
-};
+use crate::{Context, DynEndpoint, Endpoint, Request, Middleware, Next, Result};
 use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::sync::Arc;
@@ -14,7 +9,7 @@ pub struct Router {
   pub not_found_handler: Box<DynEndpoint>,
 }
 
-async fn default_handler(_req: HyperRequest, _ctx: Context) -> Result {
+async fn default_handler(_req: Request, _ctx: Context) -> Result {
   Ok("handle not found".into())
 }
 
@@ -77,7 +72,7 @@ impl Router {
     self.middlewares.push(Arc::new(middleware));
   }
 
-  pub async fn dispatch(&self, req: HyperRequest, remote_addr: Arc<SocketAddr>) -> Result {
+  pub async fn dispatch(&self, req: Request, remote_addr: Arc<SocketAddr>) -> Result {
     let method = req.method();
     let path = req.uri().path();
 

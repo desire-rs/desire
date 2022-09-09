@@ -1,23 +1,17 @@
 use crate::context::Context;
-use crate::{HyperRequest, Response, Result};
-use bytes::Bytes;
-use http_body_util::Full;
-use hyper::StatusCode;
-use route_recognizer::Params;
-use serde::Serialize;
+use crate::{Request, Response, Result};
 use std::future::Future;
-use std::net::SocketAddr;
 use std::pin::Pin;
 use std::sync::Arc;
 
 #[async_trait::async_trait]
 pub trait IntoResponse: Send + Sync + 'static {
-  async fn into_response(&self) -> Result;
+  async fn into_response(self) -> Result;
 }
 
 #[async_trait::async_trait]
 pub trait Endpoint: Send + Sync + 'static {
-  async fn call(&self, req: HyperRequest, ctx: Context) -> Result;
+  async fn call(&self, req: Request, ctx: Context) -> Result;
 }
 
 pub type DynEndpoint = dyn Endpoint;
@@ -25,11 +19,11 @@ pub type DynEndpoint = dyn Endpoint;
 #[async_trait::async_trait]
 impl<F, Fut, Res> Endpoint for F
 where
-  F: Send + Sync + 'static + Fn(HyperRequest, Context) -> Fut,
+  F: Send + Sync + 'static + Fn(Request, Context) -> Fut,
   Fut: Future<Output = Result<Res>> + Send + Sync + 'static,
   Res: Into<Response> + 'static,
 {
-  async fn call(&self, req: HyperRequest, ctx: Context) -> Result {
+  async fn call(&self, req: Request, ctx: Context) -> Result {
     let fut = (self)(req, ctx);
     let res = fut.await?;
     Ok(res.into())
@@ -42,7 +36,7 @@ pub struct Next<'a> {
 }
 
 impl Next<'_> {
-  pub async fn run(mut self, req: HyperRequest, ctx: Context) -> Result {
+  pub async fn run(mut self, req: Request, ctx: Context) -> Result {
     if let Some((cur, next)) = self.middlewares.split_first() {
       self.middlewares = next;
       cur.handle(req, ctx, self).await
@@ -54,7 +48,7 @@ impl Next<'_> {
 
 #[async_trait::async_trait]
 pub trait Middleware: Send + Sync + 'static {
-  async fn handle(&self, req: HyperRequest, ctx: Context, next: Next<'_>) -> Result;
+  async fn handle(&self, req: Request, ctx: Context, next: Next<'_>) -> Result;
   fn name(&self) -> &str {
     std::any::type_name::<Self>()
   }
@@ -66,9 +60,9 @@ where
   F: Send
     + Sync
     + 'static
-    + for<'a> Fn(HyperRequest, Context, Next<'a>) -> Pin<Box<dyn Future<Output = Result> + 'a + Send>>,
+    + for<'a> Fn(Request, Context, Next<'a>) -> Pin<Box<dyn Future<Output = Result> + 'a + Send + Sync>>,
 {
-  async fn handle(&self, req: HyperRequest, ctx: Context, next: Next<'_>) -> Result {
+  async fn handle(&self, req: Request, ctx: Context, next: Next<'_>) -> Result {
     (self)(req, ctx, next).await
   }
 }
