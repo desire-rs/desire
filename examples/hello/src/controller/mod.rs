@@ -15,10 +15,9 @@ pub async fn get_users(req: Request) -> Result {
 }
 pub async fn get_user_by_id(req: Request) -> Result {
   let method = req.method().to_string();
-  let params = req.params;
   info!("method: {}", method);
-  info!("params: {:?}", params);
-  Ok("get_users".into())
+  let id = req.get_param::<String>("id")?;
+  Ok(Resp::data(id).into())
 }
 
 pub async fn get_query(req: Request) -> Result {
@@ -29,5 +28,5 @@ pub async fn get_query(req: Request) -> Result {
 pub async fn create_users(req: Request) -> Result {
   let user = req.body::<User>().await?;
   info!("user: {:?}", user);
-  Ok("create_users".into())
+  Ok(Resp::data(user).into())
 }
