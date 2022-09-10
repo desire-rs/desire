@@ -1,4 +1,4 @@
 [workspace]
-exclude = ["target", "env"]
+exclude = ["target", "env", "assets", "dist"]
 members = ["*"]
 resolver = "2"

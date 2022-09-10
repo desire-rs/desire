@@ -1,11 +1,12 @@
 mod config;
 mod controller;
-mod middleware;
-mod service;
-mod model;
-mod types;
 mod error;
+mod middleware;
+mod model;
+mod service;
+mod types;
 use config::ENV_NAME;
+use desire::{ServeDir, ServeFile};
 use std::env;
 use tracing::{info, Level};
 use tracing_subscriber::FmtSubscriber;
@@ -23,7 +24,8 @@ async fn main() -> desire::Result<()> {
   info!("ENV_NAME: {}", ENV_NAME.to_string());
   let mut app = desire::Router::new();
   app.with(middleware::Logger);
-  app.get("/", controller::hello);
+  app.get("/", ServeFile::new("dist/index.html".into()));
+  app.get("/assets/:file", ServeDir::new("dist/assets".into()));
   app.get("/hello", controller::hello);
   app.get("/user", controller::get_users);
   app.get("/query", controller::get_query);
