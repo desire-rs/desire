@@ -3,8 +3,6 @@ use crate::Request;
 use crate::Result;
 use bytes::Bytes;
 use http_body_util::Full;
-use tracing::info;
-
 use std::path::PathBuf;
 pub struct ServeFile {
   path: PathBuf,
@@ -36,11 +34,8 @@ impl ServeDir {
 impl Endpoint for ServeDir {
   async fn call(&self, req: Request) -> Result {
     let file = req.get_param::<String>("file")?;
-    info!("file {}", file);
     let dir = self.dir.clone();
     let file = PathBuf::from(format!("{}/{}", dir.to_string_lossy(), file));
-    info!("file {:?}", file);
-
     let body = tokio::fs::read(file).await?;
     let response = hyper::Response::new(Full::new(Bytes::from(body))).into();
     Ok(response)
