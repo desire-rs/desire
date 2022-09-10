@@ -1,1 +1,2 @@
-alert('Hello Desire')
+// alert('Hello Desire')
+console.log('Hello Desire');
