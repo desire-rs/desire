@@ -121,3 +121,9 @@ where
       .into()
   }
 }
+
+impl From<anyhow::Error> for Response {
+  fn from(e: anyhow::Error) -> Self {
+    Response::with_status(500, e.to_string())
+  }
+}
