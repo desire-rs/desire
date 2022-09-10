@@ -16,14 +16,8 @@ pub use response::Response;
 pub use router::Router;
 pub use server::Server;
 use std::net::SocketAddr;
-pub use types::{AnyResult, HyperRequest, HyperResponse, Resp, Result};
+pub use types::{AnyResult, HyperRequest, HyperResponse, Result};
 #[must_use]
 pub fn new(addr: SocketAddr) -> Server {
   Server::bind(addr)
 }
-
-// re-export
-pub use async_trait::async_trait;
-pub use bytes::Bytes;
-pub use http_body_util::Full;
-pub use hyper::{header, http, Method, StatusCode};
