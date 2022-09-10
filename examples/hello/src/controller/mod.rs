@@ -1,33 +1,34 @@
 use crate::model::{QueryUser, User};
-use desire::{Request, Resp, Result};
+use crate::types::{ApiResult, Resp};
+use desire::{Request, Result};
 use tracing::info;
-pub async fn hello(req: Request) -> Result {
+pub async fn hello(req: Request) -> ApiResult<String> {
   let method = req.method().to_string();
-  let msg = "hello world";
+  let msg = "hello world".to_string();
   let remote = req.remote_addr;
   println!("method: {} {:?}", method, remote);
-  Ok(Resp::data(msg).into())
+  Ok(Resp::data(msg))
 }
 
-pub async fn get_users(req: Request) -> Result {
+pub async fn get_users(req: Request) -> ApiResult<String> {
   let method = req.method().to_string();
   println!("method: {}", method);
-  Ok("get_users".into())
+  Ok(Resp::data(method))
 }
-pub async fn get_user_by_id(req: Request) -> Result {
+pub async fn get_user_by_id(req: Request) -> ApiResult<String> {
   let method = req.method().to_string();
   info!("method: {}", method);
   let id = req.get_param::<String>("id")?;
-  Resp::data(id).into()
+  Ok(Resp::data(id))
 }
 
-pub async fn get_query(req: Request) -> Result {
+pub async fn get_query(req: Request) -> ApiResult<Option<QueryUser>> {
   let query = req.get_query::<QueryUser>()?;
   info!("query {:?}", query);
-  Resp::data(query).into()
+  Ok(Resp::data(query))
 }
-pub async fn create_users(req: Request) -> Result {
+pub async fn create_users(req: Request) -> ApiResult<User> {
   let user = req.body::<User>().await?;
   info!("user: {:?}", user);
-  Resp::data(user).into()
+  Ok(Resp::data(user))
 }

@@ -25,11 +25,11 @@ impl Response {
       .unwrap()
       .into()
   }
-  pub async fn json<T>(payload: T) -> Result
+  pub fn json<T>(payload: T) -> Response
   where
     T: serde::Serialize + Sized + Send + Sync + 'static,
   {
-    let data = serde_json::to_string(&payload)?;
+    let data = serde_json::to_string(&payload).unwrap();
     let response = hyper::http::Response::builder()
       .header(
         hyper::header::CONTENT_TYPE,
@@ -38,7 +38,7 @@ impl Response {
       .body(Full::new(Bytes::from(data)))
       .unwrap()
       .into();
-    Ok(response)
+    response
   }
 }
 
