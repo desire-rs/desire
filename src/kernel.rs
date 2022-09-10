@@ -1,4 +1,4 @@
-use crate::{Request, Response};
+use crate::{Error, Request, Response};
 use bytes::Bytes;
 use http_body_util::Full;
 use std::borrow::Cow;
@@ -103,6 +103,22 @@ where
   fn into_response(self) -> Response {
     match self {
       Ok(value) => value.into_response(),
+      Err(err) => err.into_response(),
+    }
+  }
+}
+
+impl IntoResponse for Error {
+  fn into_response(self) -> Response {
+    let val = self.to_string();
+    Response::with_status(500, val)
+  }
+}
+
+impl IntoResponse for Result<Response, Error> {
+  fn into_response(self) -> Response {
+    match self {
+      Ok(value) => value,
       Err(err) => err.into_response(),
     }
   }
