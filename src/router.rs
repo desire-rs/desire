@@ -1,4 +1,4 @@
-use crate::{DynEndpoint, Endpoint, Request, Middleware, Next, Result};
+use crate::{DynEndpoint, Endpoint, IntoResponse, Middleware, Next, Request, Response};
 use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::sync::Arc;
@@ -9,8 +9,8 @@ pub struct Router {
   pub not_found_handler: Box<DynEndpoint>,
 }
 
-async fn default_handler(_req: Request) -> Result {
-  Ok("handle not found".into())
+async fn default_handler(_req: Request) -> impl IntoResponse {
+  "handle not found"
 }
 
 impl Router {
@@ -72,7 +72,7 @@ impl Router {
     self.middlewares.push(Arc::new(middleware));
   }
 
-  pub async fn dispatch(&self, mut req: Request, remote_addr: Arc<SocketAddr>) -> Result {
+  pub async fn dispatch(&self, mut req: Request, remote_addr: Arc<SocketAddr>) -> Response {
     let method = req.method();
     let path = req.uri().path();
 

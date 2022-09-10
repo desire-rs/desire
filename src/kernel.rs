@@ -1,16 +1,12 @@
-use crate::{Request, Response, Result};
+use crate::{Request, Response};
+use bytes::Bytes;
+use http_body_util::Full;
+use std::borrow::Cow;
 use std::future::Future;
-use std::pin::Pin;
 use std::sync::Arc;
-
-#[async_trait::async_trait]
-pub trait IntoResponse: Send + Sync + 'static {
-  async fn into_response(self) -> Result;
-}
-
 #[async_trait::async_trait]
 pub trait Endpoint: Send + Sync + 'static {
-  async fn call(&self, req: Request) -> Result;
+  async fn call(&self, req: Request) -> Response;
 }
 
 pub type DynEndpoint = dyn Endpoint;
@@ -19,13 +15,13 @@ pub type DynEndpoint = dyn Endpoint;
 impl<F, Fut, Res> Endpoint for F
 where
   F: Send + Sync + 'static + Fn(Request) -> Fut,
-  Fut: Future<Output = Result<Res>> + Send  + 'static,
-  Res: Into<Response> + 'static,
+  Fut: Future<Output = Res> + Send + 'static,
+  Res: IntoResponse + 'static,
 {
-  async fn call(&self, req: Request) -> Result {
+  async fn call(&self, req: Request) -> Response {
     let fut = (self)(req);
-    let res = fut.await?;
-    Ok(res.into())
+    let res = fut.await;
+    res.into_response()
   }
 }
 
@@ -35,7 +31,7 @@ pub struct Next<'a> {
 }
 
 impl Next<'_> {
-  pub async fn run(mut self, req: Request) -> Result {
+  pub async fn run(mut self, req: Request) -> Response {
     if let Some((cur, next)) = self.middlewares.split_first() {
       self.middlewares = next;
       cur.handle(req, self).await
@@ -47,21 +43,67 @@ impl Next<'_> {
 
 #[async_trait::async_trait]
 pub trait Middleware: Send + Sync + 'static {
-  async fn handle(&self, req: Request, next: Next<'_>) -> Result;
+  async fn handle(&self, req: Request, next: Next<'_>) -> Response;
   fn name(&self) -> &str {
     std::any::type_name::<Self>()
   }
 }
 
 #[async_trait::async_trait]
-impl<F> Middleware for F
+impl<F, Fut, Res> Middleware for F
 where
-  F: Send
-    + Sync
-    + 'static
-    + for<'a> Fn(Request, Next<'a>) -> Pin<Box<dyn Future<Output = Result> + 'a + Send + Sync>>,
+  F: Send + Sync + 'static + Fn(Request, Next) -> Fut,
+  Fut: Future<Output = Res> + Send + 'static,
+  Res: IntoResponse + 'static,
 {
-  async fn handle(&self, req: Request, next: Next<'_>) -> Result {
-    (self)(req, next).await
+  async fn handle(&self, req: Request, next: Next<'_>) -> Response {
+    let fut = (self)(req, next);
+    let res = fut.await;
+    res.into_response()
+  }
+}
+
+pub trait IntoResponse {
+  fn into_response(self) -> Response;
+}
+
+impl IntoResponse for Full<Bytes> {
+  fn into_response(self) -> Response {
+    hyper::http::Response::builder().body(self).unwrap().into()
+  }
+}
+
+impl IntoResponse for &'static str {
+  fn into_response(self) -> Response {
+    Cow::Borrowed(self).into_response()
+  }
+}
+
+impl IntoResponse for String {
+  fn into_response(self) -> Response {
+    Cow::<'static, str>::Owned(self).into_response()
+  }
+}
+impl IntoResponse for Cow<'static, str> {
+  fn into_response(self) -> Response {
+    let mut res = Full::from(self).into_response();
+    res.inner.headers_mut().insert(
+      hyper::header::CONTENT_TYPE,
+      hyper::header::HeaderValue::from_static(mime::TEXT_PLAIN_UTF_8.as_ref()),
+    );
+    res
+  }
+}
+
+impl<T, E> IntoResponse for Result<T, E>
+where
+  T: IntoResponse,
+  E: IntoResponse,
+{
+  fn into_response(self) -> Response {
+    match self {
+      Ok(value) => value.into_response(),
+      Err(err) => err.into_response(),
+    }
   }
 }

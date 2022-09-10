@@ -38,10 +38,8 @@ pub async fn dispatch(
   remote_addr: Arc<SocketAddr>,
   router: Arc<Router>,
 ) -> Result<HyperResponse> {
-  match router.dispatch(req.into(), remote_addr).await {
-    Ok(response) => Ok(response.inner),
-    Err(err) => Err(err.into()),
-  }
+  let response = router.dispatch(req.into(), remote_addr).await;
+  Ok(response.inner)
 }
 
 pub struct Server {

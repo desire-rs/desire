@@ -1,6 +1,6 @@
 use crate::Endpoint;
 use crate::Request;
-use crate::Result;
+use crate::Response;
 use bytes::Bytes;
 use http_body_util::Full;
 use std::path::PathBuf;
@@ -14,10 +14,10 @@ impl ServeFile {
 }
 #[async_trait::async_trait]
 impl Endpoint for ServeFile {
-  async fn call(&self, _req: Request) -> Result {
-    let body = tokio::fs::read(&self.path).await?;
-    let response = hyper::Response::new(Full::new(Bytes::from(body))).into();
-    Ok(response)
+  async fn call(&self, _req: Request) -> Response {
+    let body = tokio::fs::read(&self.path).await.unwrap();
+    let response = hyper::Response::new(Full::new(Bytes::from(body)));
+    response.into()
   }
 }
 
@@ -32,12 +32,12 @@ impl ServeDir {
 }
 #[async_trait::async_trait]
 impl Endpoint for ServeDir {
-  async fn call(&self, req: Request) -> Result {
-    let file = req.get_param::<String>("file")?;
+  async fn call(&self, req: Request) -> Response {
+    let file = req.get_param::<String>("file").unwrap();
     let dir = self.dir.clone();
     let file = PathBuf::from(format!("{}/{}", dir.to_string_lossy(), file));
-    let body = tokio::fs::read(file).await?;
-    let response = hyper::Response::new(Full::new(Bytes::from(body))).into();
-    Ok(response)
+    let body = tokio::fs::read(file).await.unwrap();
+    let response = hyper::Response::new(Full::new(Bytes::from(body)));
+    response.into()
   }
 }
