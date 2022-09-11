@@ -15,7 +15,7 @@ pub async fn error(req: Request) -> ApiResult<String> {
   let msg = "hello world".to_string();
   let remote = req.remote_addr;
   println!("method: {} {:?}", method, remote);
-  Ok(Resp::data(msg))
+  Ok(Resp::error(msg))
 }
 
 pub async fn get_users(req: Request) -> ApiResult<String> {
