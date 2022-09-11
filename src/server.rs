@@ -46,8 +46,10 @@ pub struct Server {
   addr: SocketAddr,
 }
 impl Server {
-  pub fn bind(addr: SocketAddr) -> Self {
-    Server { addr }
+  pub fn bind(addr: &str) -> Self {
+    Server {
+      addr: addr.parse().unwrap(),
+    }
   }
 
   pub async fn run(&self, router: Router) -> Result<()> {

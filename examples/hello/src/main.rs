@@ -33,7 +33,7 @@ async fn main() -> desire::Result<()> {
   app.get("/user/:id", controller::get_user_by_id);
   app.post("/user", controller::create_users);
 
-  let addr = "127.0.0.1:1337".parse()?;
+  let addr = "127.0.0.1:1337";
   let serve = desire::new(addr);
   serve.run(app).await?;
   info!("hello");

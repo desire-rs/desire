@@ -15,9 +15,8 @@ pub use request::Request;
 pub use response::Response;
 pub use router::Router;
 pub use server::Server;
-use std::net::SocketAddr;
 pub use types::{AnyResult, HyperRequest, HyperResponse, Result};
 #[must_use]
-pub fn new(addr: SocketAddr) -> Server {
+pub fn new(addr: &str) -> Server {
   Server::bind(addr)
 }
