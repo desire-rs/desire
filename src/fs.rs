@@ -33,10 +33,10 @@ impl ServeDir {
 #[async_trait::async_trait]
 impl Endpoint for ServeDir {
   async fn call(&self, req: Request) -> Result {
-    let file = req.get_param::<String>("file").unwrap();
+    let file = req.get_param::<String>("file")?;
     let dir = self.dir.clone();
     let file = PathBuf::from(format!("{}/{}", dir.to_string_lossy(), file));
-    let body = tokio::fs::read(file).await.unwrap();
+    let body = tokio::fs::read(file).await?;
     let response = hyper::Response::new(Full::new(Bytes::from(body)));
     Ok(response.into())
   }
