@@ -21,7 +21,7 @@ where
   async fn call(&self, req: Request) -> Result {
     let fut = (self)(req);
     let res = fut.await;
-    Ok(res.into_response())
+    res.into_response()
   }
 }
 
@@ -59,39 +59,40 @@ where
   async fn handle(&self, req: Request, next: Next<'_>) -> Result {
     let fut = (self)(req, next);
     let res = fut.await;
-    Ok(res.into_response())
+    res.into_response()
   }
 }
 
 pub trait IntoResponse {
-  fn into_response(self) -> Response;
+  fn into_response(self) -> Result;
 }
 
 impl IntoResponse for Full<Bytes> {
-  fn into_response(self) -> Response {
-    hyper::http::Response::builder().body(self).unwrap().into()
+  fn into_response(self) -> Result {
+    let response = hyper::http::Response::builder().body(self)?.into();
+    Ok(response)
   }
 }
 
 impl IntoResponse for &'static str {
-  fn into_response(self) -> Response {
+  fn into_response(self) -> Result {
     Cow::Borrowed(self).into_response()
   }
 }
 
 impl IntoResponse for String {
-  fn into_response(self) -> Response {
+  fn into_response(self) -> Result {
     Cow::<'static, str>::Owned(self).into_response()
   }
 }
 impl IntoResponse for Cow<'static, str> {
-  fn into_response(self) -> Response {
-    let mut res = Full::from(self).into_response();
+  fn into_response(self) -> Result {
+    let mut res = Full::from(self).into_response()?;
     res.inner.headers_mut().insert(
       hyper::header::CONTENT_TYPE,
       hyper::header::HeaderValue::from_static(mime::TEXT_PLAIN_UTF_8.as_ref()),
     );
-    res
+    Ok(res)
   }
 }
 
@@ -100,26 +101,17 @@ where
   T: IntoResponse,
   E: IntoResponse,
 {
-  fn into_response(self) -> Response {
+  fn into_response(self) -> Result {
     match self {
-      Ok(value) => value.into_response(),
+      Ok(response) => response.into_response(),
       Err(err) => err.into_response(),
     }
   }
 }
 
 impl IntoResponse for Error {
-  fn into_response(self) -> Response {
+  fn into_response(self) -> Result {
     let val = self.to_string();
-    Response::with_status(500, val).unwrap()
-  }
-}
-
-impl IntoResponse for std::result::Result<Response, Error> {
-  fn into_response(self) -> Response {
-    match self {
-      Ok(value) => value,
-      Err(err) => err.into_response(),
-    }
+    Response::with_status(500, val)
   }
 }
