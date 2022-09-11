@@ -10,6 +10,14 @@ pub async fn hello(req: Request) -> ApiResult<String> {
   Ok(Resp::data(msg))
 }
 
+pub async fn error(req: Request) -> ApiResult<String> {
+  let method = req.method().to_string();
+  let msg = "hello world".to_string();
+  let remote = req.remote_addr;
+  println!("method: {} {:?}", method, remote);
+  Ok(Resp::data(msg))
+}
+
 pub async fn get_users(req: Request) -> ApiResult<String> {
   let method = req.method().to_string();
   println!("method: {}", method);

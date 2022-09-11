@@ -1,7 +1,8 @@
 use crate::error::Error;
 use desire::IntoResponse;
 use desire::Response;
-pub type ApiResult<T> = Result<Resp<T>, Error>;
+use desire::Result;
+pub type ApiResult<T> = std::result::Result<Resp<T>, Error>;
 
 use serde::{Deserialize, Serialize};
 #[derive(Debug, Serialize, Deserialize)]
@@ -36,7 +37,7 @@ impl<T> IntoResponse for Resp<T>
 where
   T: Serialize + Send + Sync + 'static,
 {
-  fn into_response(self) -> Response {
+  fn into_response(self) -> Result {
     Response::json::<Resp<T>>(self)
   }
 }
