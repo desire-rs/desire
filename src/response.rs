@@ -23,7 +23,7 @@ impl Response {
       .unwrap()
       .into()
   }
-  pub fn json<T>(payload: T) -> Response
+  pub fn json<T>(payload: T) -> Self
   where
     T: serde::Serialize + Sized + Send + Sync + 'static,
   {
