@@ -20,3 +20,6 @@ pub use types::{AnyResult, HyperRequest, HyperResponse, Result};
 pub fn new(addr: &str) -> Server {
   Server::bind(addr)
 }
+
+// re-export
+pub use hyper::http;
