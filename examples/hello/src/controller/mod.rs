@@ -1,6 +1,6 @@
 use crate::model::{QueryUser, User};
 use crate::types::{ApiResult, Resp};
-use desire::{Request, Result};
+use desire::Request;
 use tracing::info;
 pub async fn hello(req: Request) -> ApiResult<String> {
   let method = req.method().to_string();

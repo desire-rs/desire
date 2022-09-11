@@ -38,7 +38,7 @@ pub async fn dispatch(
   remote_addr: Arc<SocketAddr>,
   router: Arc<Router>,
 ) -> Result<HyperResponse> {
-  let response = router.dispatch(req.into(), remote_addr).await;
+  let response = router.dispatch(req.into(), remote_addr).await?;
   Ok(response.inner)
 }
 

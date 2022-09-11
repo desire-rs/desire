@@ -1,4 +1,4 @@
-use crate::{Error, Request, Response};
+use crate::{Error, Request, Response, Result};
 use bytes::Bytes;
 use http_body_util::Full;
 use std::borrow::Cow;
@@ -6,7 +6,7 @@ use std::future::Future;
 use std::sync::Arc;
 #[async_trait::async_trait]
 pub trait Endpoint: Send + Sync + 'static {
-  async fn call(&self, req: Request) -> Response;
+  async fn call(&self, req: Request) -> Result;
 }
 
 pub type DynEndpoint = dyn Endpoint;
@@ -18,10 +18,10 @@ where
   Fut: Future<Output = Res> + Send + 'static,
   Res: IntoResponse + 'static,
 {
-  async fn call(&self, req: Request) -> Response {
+  async fn call(&self, req: Request) -> Result {
     let fut = (self)(req);
     let res = fut.await;
-    res.into_response()
+    Ok(res.into_response())
   }
 }
 
@@ -31,7 +31,7 @@ pub struct Next<'a> {
 }
 
 impl Next<'_> {
-  pub async fn run(mut self, req: Request) -> Response {
+  pub async fn run(mut self, req: Request) -> Result {
     if let Some((cur, next)) = self.middlewares.split_first() {
       self.middlewares = next;
       cur.handle(req, self).await
@@ -43,7 +43,7 @@ impl Next<'_> {
 
 #[async_trait::async_trait]
 pub trait Middleware: Send + Sync + 'static {
-  async fn handle(&self, req: Request, next: Next<'_>) -> Response;
+  async fn handle(&self, req: Request, next: Next<'_>) -> Result;
   fn name(&self) -> &str {
     std::any::type_name::<Self>()
   }
@@ -56,10 +56,10 @@ where
   Fut: Future<Output = Res> + Send + 'static,
   Res: IntoResponse + 'static,
 {
-  async fn handle(&self, req: Request, next: Next<'_>) -> Response {
+  async fn handle(&self, req: Request, next: Next<'_>) -> Result {
     let fut = (self)(req, next);
     let res = fut.await;
-    res.into_response()
+    Ok(res.into_response())
   }
 }
 
@@ -95,7 +95,7 @@ impl IntoResponse for Cow<'static, str> {
   }
 }
 
-impl<T, E> IntoResponse for Result<T, E>
+impl<T, E> IntoResponse for std::result::Result<T, E>
 where
   T: IntoResponse,
   E: IntoResponse,
@@ -115,7 +115,7 @@ impl IntoResponse for Error {
   }
 }
 
-impl IntoResponse for Result<Response, Error> {
+impl IntoResponse for std::result::Result<Response, Error> {
   fn into_response(self) -> Response {
     match self {
       Ok(value) => value,

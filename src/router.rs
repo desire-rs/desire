@@ -1,4 +1,4 @@
-use crate::{DynEndpoint, Endpoint, IntoResponse, Middleware, Next, Request, Response};
+use crate::{DynEndpoint, Endpoint, IntoResponse, Middleware, Next, Request, Result};
 use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::sync::Arc;
@@ -72,7 +72,7 @@ impl Router {
     self.middlewares.push(Arc::new(middleware));
   }
 
-  pub async fn dispatch(&self, mut req: Request, remote_addr: Arc<SocketAddr>) -> Response {
+  pub async fn dispatch(&self, mut req: Request, remote_addr: Arc<SocketAddr>) -> Result {
     let method = req.method();
     let path = req.uri().path();
 
