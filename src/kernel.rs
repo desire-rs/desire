@@ -111,7 +111,7 @@ where
 impl IntoResponse for Error {
   fn into_response(self) -> Response {
     let val = self.to_string();
-    Response::with_status(500, val)
+    Response::with_status(500, val).unwrap()
   }
 }
 

@@ -4,6 +4,8 @@ use thiserror::Error;
 pub enum Error {
   #[error("hyper error")]
   HyperError(#[from] hyper::Error),
+  #[error("http error")]
+  HTTPError(#[from] hyper::http::Error),
   #[error("json error")]
   JsonError(#[from] serde_json::Error),
   #[error("IO error")]
@@ -14,6 +16,8 @@ pub enum Error {
   UrlencodedError(#[from] serde_urlencoded::de::Error),
   #[error("addr parse error")]
   AddrParseError(#[from] std::net::AddrParseError),
+  #[error("InvalidStatusCode")]
+  InvalidStatusCode(#[from] hyper::http::status::InvalidStatusCode),
   #[error("missing url param {name:?}")]
   MissingParam { name: String },
   #[error("invalid param {name:?} as {expected:?}, {err:?}")]
@@ -52,6 +56,6 @@ pub fn invalid_param(
 
 impl From<Error> for Response {
   fn from(err: Error) -> Self {
-    Response::with_status(500, err.to_string())
+    Response::with_status(500, err.to_string()).unwrap()
   }
 }
