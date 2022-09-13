@@ -56,3 +56,6 @@ tokio-stream = {version = "0.1", features = ["net"]}
 [features]
 # Nothing by default
 default = []
+
+[lib]
+crate-type = ["dylib"]

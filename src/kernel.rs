@@ -1,7 +1,5 @@
-use crate::{Error, Request, Response, Result};
-use bytes::Bytes;
-use http_body_util::Full;
-use std::borrow::Cow;
+use crate::IntoResponse;
+use crate::{Request, Result};
 use std::future::Future;
 use std::sync::Arc;
 #[async_trait::async_trait]
@@ -60,58 +58,5 @@ where
     let fut = (self)(req, next);
     let res = fut.await;
     res.into_response()
-  }
-}
-
-pub trait IntoResponse {
-  fn into_response(self) -> Result;
-}
-
-impl IntoResponse for Full<Bytes> {
-  fn into_response(self) -> Result {
-    let response = hyper::http::Response::builder().body(self)?.into();
-    Ok(response)
-  }
-}
-
-impl IntoResponse for &'static str {
-  fn into_response(self) -> Result {
-    Cow::Borrowed(self).into_response()
-  }
-}
-
-impl IntoResponse for String {
-  fn into_response(self) -> Result {
-    Cow::<'static, str>::Owned(self).into_response()
-  }
-}
-impl IntoResponse for Cow<'static, str> {
-  fn into_response(self) -> Result {
-    let mut res = Full::from(self).into_response()?;
-    res.inner.headers_mut().insert(
-      hyper::header::CONTENT_TYPE,
-      hyper::header::HeaderValue::from_static(mime::TEXT_PLAIN_UTF_8.as_ref()),
-    );
-    Ok(res)
-  }
-}
-
-impl<T, E> IntoResponse for std::result::Result<T, E>
-where
-  T: IntoResponse,
-  E: IntoResponse,
-{
-  fn into_response(self) -> Result {
-    match self {
-      Ok(response) => response.into_response(),
-      Err(err) => err.into_response(),
-    }
-  }
-}
-
-impl IntoResponse for Error {
-  fn into_response(self) -> Result {
-    let val = self.to_string();
-    Response::with_status(500, val)
   }
 }
