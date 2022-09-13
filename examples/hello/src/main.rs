@@ -27,6 +27,7 @@ async fn main() -> desire::Result<()> {
   app.get("/", ServeFile::new("dist/index.html".into()));
   app.get("/assets/:file", ServeDir::new("dist/assets".into()));
   app.get("/hello", controller::hello);
+  app.get("/hello1", controller::hello1);
   app.get("/error", controller::error);
   app.get("/user", controller::get_users);
   app.get("/query", controller::get_query);

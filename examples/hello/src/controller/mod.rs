@@ -1,5 +1,6 @@
 use crate::model::{QueryUser, User};
 use crate::types::{ApiResult, Resp};
+use desire::IntoResponse;
 use desire::Request;
 use tracing::info;
 pub async fn hello(req: Request) -> ApiResult<String> {
@@ -8,6 +9,14 @@ pub async fn hello(req: Request) -> ApiResult<String> {
   let remote = req.remote_addr;
   println!("method: {} {:?}", method, remote);
   Ok(Resp::data(msg))
+}
+
+pub async fn hello1(req: Request) -> impl IntoResponse {
+  let method = req.method().to_string();
+  let msg = "hello world".to_string();
+  let remote = req.remote_addr;
+  println!("method: {} {:?}", method, remote);
+  (200, msg)
 }
 
 pub async fn error(req: Request) -> ApiResult<String> {
