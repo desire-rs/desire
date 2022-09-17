@@ -32,7 +32,10 @@ impl Next<'_> {
   pub async fn run(mut self, req: Request) -> Result {
     if let Some((cur, next)) = self.middlewares.split_first() {
       self.middlewares = next;
-      cur.handle(req, self).await
+      match cur.handle(req, self).await {
+        Ok(response) => response.into_response(),
+        Err(err) => err.into_response(),
+      }
     } else {
       self.endpoint.call(req).await
     }
