@@ -8,7 +8,6 @@ use std::future::Future;
 use std::net::SocketAddr;
 use std::pin::Pin;
 use std::sync::Arc;
-use std::task::Poll;
 use tokio::net::TcpListener;
 use tracing::{error, info};
 pub struct Svc {
@@ -20,10 +19,6 @@ impl Service<HyperRequest> for Svc {
   type Response = HyperResponse;
   type Error = crate::error::Error;
   type Future = Pin<Box<dyn Future<Output = Result<Self::Response>> + Send>>;
-
-  fn poll_ready(&mut self, _: &mut std::task::Context) -> Poll<Result<()>> {
-    Poll::Ready(Ok(()))
-  }
 
   fn call(&mut self, req: HyperRequest) -> Self::Future {
     let router = self.router.clone();
