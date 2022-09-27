@@ -34,7 +34,7 @@ chrono = {version = "0.4", features = ["serde"]}
 dotenv = "0.15.0"
 http-body = {git = "https://github.com/hyperium/http-body", rev = "6d7dd17"}
 http-body-util = {git = "https://github.com/hyperium/http-body", rev = "6d7dd17"}
-hyper = {git = "https://github.com/hyperium/hyper", branch = "master", features = ["full"]}
+hyper = {git = "https://github.com/hyperium/hyper", features = ["full"]}
 mime = "0.3"
 route-recognizer = "0.3"
 serde = {version = "1.0", features = ["derive"]}
@@ -49,5 +49,5 @@ tracing = "0.1"
 # Nothing by default
 default = []
 
-[lib]
-crate-type = ["dylib"]
+# [lib]
+# crate-type = ["dylib"]
