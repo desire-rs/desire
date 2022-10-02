@@ -44,18 +44,11 @@ impl Request {
   pub fn extensions_mut(&mut self) -> &mut Extensions {
     self.inner.extensions_mut()
   }
-  pub async fn body<T>(self) -> AnyResult<T>
-  where
-    T: serde::de::DeserializeOwned + Send + Sync + 'static,
-  {
-    let body = hyper::body::aggregate(self.inner).await?;
-    let payload: T = serde_json::from_reader(body.reader())?;
-    Ok(payload)
-  }
+
   pub fn inner(&mut self) -> &mut HyperRequest {
     &mut self.inner
   }
-  pub async fn get_body<T>(&mut self) -> AnyResult<T>
+  pub async fn body<T>(&mut self) -> AnyResult<T>
   where
     T: serde::de::DeserializeOwned + Send + Sync + 'static,
   {
@@ -64,7 +57,7 @@ impl Request {
     let payload: T = serde_json::from_reader(body.reader())?;
     Ok(payload)
   }
-  pub fn get_query<T>(&self) -> AnyResult<Option<T>>
+  pub fn query<T>(&self) -> AnyResult<Option<T>>
   where
     T: serde::de::DeserializeOwned,
   {
@@ -75,7 +68,7 @@ impl Request {
       Ok(None)
     }
   }
-  pub fn get_param<T>(&self, param: &str) -> Result<T>
+  pub fn param<T>(&self, param: &str) -> Result<T>
   where
     T: std::str::FromStr,
     <T as std::str::FromStr>::Err: std::error::Error,

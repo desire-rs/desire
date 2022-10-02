@@ -35,7 +35,7 @@ impl ServeDir {
 #[async_trait::async_trait]
 impl Endpoint for ServeDir {
   async fn call(&self, req: Request) -> Result {
-    let file = req.get_param::<String>("file")?;
+    let file = req.param::<String>("file")?;
     let dir = self.dir.clone();
     let ext = Path::new(&file).extension();
     let file = PathBuf::from(format!("{}/{}", dir.to_string_lossy(), file));

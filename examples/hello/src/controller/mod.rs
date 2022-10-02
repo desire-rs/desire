@@ -35,17 +35,17 @@ pub async fn get_users(req: Request) -> ApiResult<String> {
 pub async fn get_user_by_id(req: Request) -> ApiResult<String> {
   let method = req.method().to_string();
   info!("method: {}", method);
-  let id = req.get_param::<String>("id")?;
+  let id = req.param::<String>("id")?;
   Ok(Resp::data(id))
 }
 
 pub async fn get_query(req: Request) -> ApiResult<Option<QueryUser>> {
-  let query = req.get_query::<QueryUser>()?;
+  let query = req.query::<QueryUser>()?;
   info!("query {:?}", query);
   Ok(Resp::data(query))
 }
 pub async fn create_users(mut req: Request) -> ApiResult<User> {
-  let user = req.get_body::<User>().await?;
+  let user = req.body::<User>().await?;
   info!("user: {:?}", user);
   Ok(Resp::data(user))
 }
