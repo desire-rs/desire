@@ -43,6 +43,15 @@ impl Response {
       .into();
     Ok(response)
   }
+
+  pub fn redirect(&self, status: u16, url: &str) -> Result<Self> {
+    let response = hyper::http::Response::builder()
+      .status(hyper::StatusCode::from_u16(status)?)
+      .header(header::LOCATION, url)
+      .body(Full::new(Bytes::default()))?
+      .into();
+    Ok(response)
+  }
 }
 
 impl From<HyperResponse> for Response {
