@@ -8,6 +8,7 @@ use route_recognizer::Params;
 use std::net::SocketAddr;
 use std::sync::Arc;
 
+#[derive(Debug)]
 pub struct Request {
   pub inner: HyperRequest,
   pub params: Params,
@@ -34,6 +35,9 @@ impl Request {
   pub fn path(&self) -> &str {
     self.inner.uri().path()
   }
+  pub fn inner(&mut self) -> &mut HyperRequest {
+    &mut self.inner
+  }
   pub fn params(&self) -> &Params {
     &self.params
   }
@@ -52,6 +56,15 @@ impl Request {
     Ok(payload)
   }
 
+  pub async fn get_body<T>(&mut self) -> AnyResult<T>
+  where
+    T: serde::de::DeserializeOwned + Send + Sync + 'static,
+  {
+    let inner = self.inner();
+    let body = hyper::body::aggregate(inner).await?;
+    let payload: T = serde_json::from_reader(body.reader())?;
+    Ok(payload)
+  }
   pub fn get_query<T>(&self) -> AnyResult<Option<T>>
   where
     T: serde::de::DeserializeOwned,
