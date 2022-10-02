@@ -3,6 +3,7 @@ use crate::AnyResult;
 use crate::HyperRequest;
 use crate::Result;
 use bytes::Buf;
+use hyper::http::Extensions;
 use route_recognizer::Params;
 use std::net::SocketAddr;
 use std::sync::Arc;
@@ -35,6 +36,12 @@ impl Request {
   }
   pub fn params(&self) -> &Params {
     &self.params
+  }
+  pub fn extensions(&self) -> &Extensions {
+    &self.inner.extensions()
+  }
+  pub fn extensions_mut(&mut self) -> &mut Extensions {
+    self.inner.extensions_mut()
   }
   pub async fn body<T>(self) -> AnyResult<T>
   where
