@@ -35,9 +35,6 @@ impl Request {
   pub fn path(&self) -> &str {
     self.inner.uri().path()
   }
-  pub fn inner(&mut self) -> &mut HyperRequest {
-    &mut self.inner
-  }
   pub fn params(&self) -> &Params {
     &self.params
   }
@@ -55,7 +52,9 @@ impl Request {
     let payload: T = serde_json::from_reader(body.reader())?;
     Ok(payload)
   }
-
+  pub fn inner(&mut self) -> &mut HyperRequest {
+    &mut self.inner
+  }
   pub async fn get_body<T>(&mut self) -> AnyResult<T>
   where
     T: serde::de::DeserializeOwned + Send + Sync + 'static,

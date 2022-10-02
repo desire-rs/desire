@@ -44,8 +44,8 @@ pub async fn get_query(req: Request) -> ApiResult<Option<QueryUser>> {
   info!("query {:?}", query);
   Ok(Resp::data(query))
 }
-pub async fn create_users(req: Request) -> ApiResult<User> {
-  let user = req.body::<User>().await?;
+pub async fn create_users(mut req: Request) -> ApiResult<User> {
+  let user = req.get_body::<User>().await?;
   info!("user: {:?}", user);
   Ok(Resp::data(user))
 }
