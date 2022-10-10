@@ -71,7 +71,9 @@ impl Router {
   pub fn with(&mut self, middleware: impl Middleware) {
     self.middlewares.push(Arc::new(middleware));
   }
-
+  pub fn merge(&mut self, target: Router) {
+    self.routes.extend(target.routes);
+  }
   pub async fn dispatch(&self, mut req: Request, remote_addr: Arc<SocketAddr>) -> Result {
     let method = req.method();
     let path = req.uri().path();

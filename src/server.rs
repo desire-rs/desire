@@ -40,6 +40,7 @@ pub async fn dispatch(
 pub struct Server {
   addr: SocketAddr,
 }
+
 impl Server {
   pub fn bind(addr: &str) -> Self {
     Server {
