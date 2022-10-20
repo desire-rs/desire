@@ -1,7 +1,6 @@
 use crate::{HyperResponse, Result};
-use bytes::Bytes;
-use http_body_util::Full;
 use hyper::header;
+use hyper::body::Body;
 use hyper::StatusCode;
 
 pub struct Response {
@@ -17,10 +16,10 @@ impl Response {
   }
   pub fn body<T>(body: T) -> Result<Self>
   where
-    Bytes: From<T>,
+    Body: From<T>,
   {
     let response = hyper::http::Response::builder()
-      .body(Full::new(Bytes::from(body)))?
+      .body(Body::from(body))?
       .into();
     Ok(response)
   }
@@ -28,7 +27,7 @@ impl Response {
     let response = hyper::http::Response::builder()
       .header(header::CONTENT_TYPE, mime::TEXT_PLAIN_UTF_8.to_string())
       .status(hyper::StatusCode::from_u16(status)?)
-      .body(Full::new(Bytes::from(val)))?
+      .body(Body::from(val))?
       .into();
     Ok(response)
   }
@@ -39,7 +38,7 @@ impl Response {
     let data = serde_json::to_string(&payload)?;
     let response = hyper::http::Response::builder()
       .header(header::CONTENT_TYPE, mime::APPLICATION_JSON.to_string())
-      .body(Full::new(Bytes::from(data)))?
+      .body(Body::from(data))?
       .into();
     Ok(response)
   }
@@ -48,7 +47,7 @@ impl Response {
     let response = hyper::http::Response::builder()
       .status(hyper::StatusCode::from_u16(status)?)
       .header(header::LOCATION, url)
-      .body(Full::new(Bytes::default()))?
+      .body(Body::empty())?
       .into();
     Ok(response)
   }
@@ -67,7 +66,7 @@ impl From<()> for Response {
         hyper::header::CONTENT_TYPE,
         mime::TEXT_PLAIN_UTF_8.to_string(),
       )
-      .body(Full::new(Bytes::default()))
+      .body(Body::empty())
       .unwrap()
       .into()
   }
@@ -80,7 +79,7 @@ impl From<String> for Response {
         hyper::header::CONTENT_TYPE,
         mime::TEXT_PLAIN_UTF_8.to_string(),
       )
-      .body(Full::new(Bytes::from(val)))
+      .body(Body::from(val))
       .unwrap()
       .into()
   }
@@ -93,7 +92,7 @@ impl From<&'static str> for Response {
         hyper::header::CONTENT_TYPE,
         mime::TEXT_PLAIN_UTF_8.to_string(),
       )
-      .body(Full::new(Bytes::from(val)))
+      .body(Body::from(val))
       .unwrap()
       .into()
   }

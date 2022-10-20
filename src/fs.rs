@@ -1,8 +1,7 @@
 use crate::Endpoint;
 use crate::Request;
 use crate::Result;
-use bytes::Bytes;
-use http_body_util::Full;
+use hyper::body::Body;
 use std::path::Path;
 use std::path::PathBuf;
 use tracing::info;
@@ -18,7 +17,7 @@ impl ServeFile {
 impl Endpoint for ServeFile {
   async fn call(&self, _req: Request) -> Result {
     let body = tokio::fs::read(&self.path).await?;
-    let response = hyper::Response::new(Full::new(Bytes::from(body)));
+    let response = hyper::Response::new(Body::from(body));
     Ok(response.into())
   }
 }
@@ -41,7 +40,7 @@ impl Endpoint for ServeDir {
     let file = PathBuf::from(format!("{}/{}", dir.to_string_lossy(), file));
     let body = tokio::fs::read(file).await?;
     info!("ext {:?}", ext);
-    let mut response = hyper::Response::new(Full::new(Bytes::from(body)));
+    let mut response = hyper::Response::new(Body::from(body));
     if let Some(ext) = ext {
       let ext = ext.to_string_lossy();
       if ext.contains(&"js") {

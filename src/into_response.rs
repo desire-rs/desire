@@ -1,13 +1,13 @@
 use crate::{Error, Response, Result};
 use bytes::{Bytes, BytesMut};
-use http_body_util::Full;
 use hyper::header;
 use std::borrow::Cow;
+use hyper::Body;
 pub trait IntoResponse {
   fn into_response(self) -> Result;
 }
 
-impl IntoResponse for Full<Bytes> {
+impl IntoResponse for Body{
   fn into_response(self) -> Result {
     let response = hyper::http::Response::builder().body(self)?.into();
     Ok(response)
@@ -28,7 +28,7 @@ impl IntoResponse for String {
 
 impl IntoResponse for Cow<'static, str> {
   fn into_response(self) -> Result {
-    let mut res = Full::from(self).into_response()?;
+    let mut res = Body::from(self).into_response()?;
     res.inner.headers_mut().insert(
       header::CONTENT_TYPE,
       header::HeaderValue::from_static(mime::TEXT_PLAIN_UTF_8.as_ref()),
@@ -60,7 +60,7 @@ impl IntoResponse for Error {
 impl IntoResponse for () {
   fn into_response(self) -> Result {
     let response = hyper::http::Response::builder()
-      .body(Full::new(Bytes::default()))?
+      .body(Body::empty())?
       .into();
     Ok(response)
   }
@@ -77,7 +77,7 @@ impl IntoResponse for (hyper::StatusCode, String) {
     let response = hyper::http::Response::builder()
       .header(header::CONTENT_TYPE, mime::TEXT_PLAIN_UTF_8.to_string())
       .status(self.0)
-      .body(Full::new(Bytes::from(self.1)))?
+      .body(Body::from(self.1))?
       .into();
     Ok(response)
   }
@@ -88,7 +88,7 @@ impl IntoResponse for (hyper::StatusCode, &'static str) {
     let response = hyper::http::Response::builder()
       .header(header::CONTENT_TYPE, mime::TEXT_PLAIN_UTF_8.to_string())
       .status(self.0)
-      .body(Full::new(Bytes::from(self.1)))?
+      .body(Body::from(self.1))?
       .into();
     Ok(response)
   }
@@ -99,7 +99,7 @@ impl IntoResponse for (u16, String) {
     let response = hyper::http::Response::builder()
       .header(header::CONTENT_TYPE, mime::TEXT_PLAIN_UTF_8.to_string())
       .status(hyper::StatusCode::from_u16(self.0)?)
-      .body(Full::new(Bytes::from(self.1)))?
+      .body(Body::from(self.1))?
       .into();
     Ok(response)
   }
@@ -110,7 +110,7 @@ impl IntoResponse for (u16, &'static str) {
     let response = hyper::http::Response::builder()
       .header(header::CONTENT_TYPE, mime::TEXT_PLAIN_UTF_8.to_string())
       .status(hyper::StatusCode::from_u16(self.0)?)
-      .body(Full::new(Bytes::from(self.1)))?
+      .body(Body::from(self.1))?
       .into();
     Ok(response)
   }
@@ -118,7 +118,7 @@ impl IntoResponse for (u16, &'static str) {
 
 impl IntoResponse for Bytes {
   fn into_response(self) -> Result {
-    let mut res = Full::from(self).into_response()?;
+    let mut res = Body::from(self).into_response()?;
     res.inner.headers_mut().insert(
       header::CONTENT_TYPE,
       header::HeaderValue::from_static(mime::APPLICATION_OCTET_STREAM.as_ref()),

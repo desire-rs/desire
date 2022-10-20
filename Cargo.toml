@@ -1,27 +1,25 @@
 [package]
-authors = [
-  "siwilizhao <siwilizhao@gmail.com>",
-] 
+authors = ["siwilizhao <siwilizhao@gmail.com>"]
 categories = [
   "network-programming",
   "asynchronous",
   "web-programming::http-server",
-] 
-description = "A minimal Rust web application framework" 
-documentation = "https://docs.rs/desire" 
-edition = "2021" 
-keywords = ["desire", "http", "web", "framework", "async"] 
-license = "Apache-2.0" 
-name = "desire" 
+]
+description = "A minimal Rust web application framework"
+documentation = "https://docs.rs/desire"
+edition = "2021"
+keywords = ["desire", "http", "web", "framework", "async"]
+license = "Apache-2.0"
+name = "desire"
 publish = false # no accidents while in dev
-readme = "README.md" 
-repository = "https://github.com/desire-rs/desire" 
-version = "0.0.1" 
+readme = "README.md"
+repository = "https://github.com/desire-rs/desire"
+version = "0.0.1"
 
 include = [
   "Cargo.toml",
   "LICENSE",
-  "src/**/*", #"build.rs",
+  "src/**/*",   #"build.rs",
 ]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
@@ -30,18 +28,16 @@ include = [
 anyhow = "1"
 async-trait = "0.1"
 bytes = "1"
-chrono = {version = "0.4", features = ["serde"]}
+chrono = { version = "0.4", features = ["serde"] }
 dotenv = "0.15.0"
-http-body = {git = "https://github.com/hyperium/http-body", rev = "6d7dd17"}
-http-body-util = {git = "https://github.com/hyperium/http-body", rev = "6d7dd17"}
-hyper = {git = "https://github.com/hyperium/hyper", features = ["full"]}
+hyper = { version = "0.14.20", features = ["full"] }
 mime = "0.3"
 route-recognizer = "0.3"
-serde = {version = "1.0", features = ["derive"]}
+serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 serde_urlencoded = "0.7"
 thiserror = "1"
-tokio = {version = "1", features = ["full"]}
+tokio = { version = "1", features = ["full"] }
 tracing = "0.1"
 [dev-dependencies]
 
