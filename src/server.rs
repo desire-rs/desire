@@ -2,7 +2,7 @@ use crate::HyperRequest;
 use crate::HyperResponse;
 use crate::Result;
 use crate::Router;
-use hyper::server::conn::Http;
+use hyper::server::conn::http1;
 use hyper::service::Service;
 use std::future::Future;
 use std::net::SocketAddr;
@@ -58,7 +58,7 @@ impl Server {
       let (stream, remote_addr) = listener.accept().await?;
       let remote_addr = Arc::new(remote_addr);
       tokio::task::spawn(async move {
-        if let Err(err) = Http::new()
+        if let Err(err) = http1::Builder::new()
           .serve_connection(
             stream,
             Svc {
