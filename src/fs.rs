@@ -86,7 +86,7 @@ impl Endpoint for ServeDir {
       } else if ext.contains(&"mp4") {
         response.headers_mut().insert(
           hyper::header::CONTENT_TYPE,
-          mime::MP4.as_ref().parse().unwrap(),
+          mime::VIDEO.as_ref().parse().unwrap(),
         );
       }
     }

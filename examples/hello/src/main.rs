@@ -17,7 +17,8 @@ async fn main() -> desire::Result<()> {
     .finish();
   tracing::subscriber::set_global_default(subscriber).expect("setting default subscriber failed");
   let arguments: Vec<String> = env::args().collect();
-  let env_name = arguments.get(1).expect("env name must be provided");
+  info!("{:?}", arguments);
+  let env_name = arguments.get(2).expect("env name must be provided");
   let env_file = format!("env/{}.env", env_name);
   dotenv::from_filename(env_file).ok();
 
