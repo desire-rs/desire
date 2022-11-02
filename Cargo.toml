@@ -32,9 +32,9 @@ async-trait = "0.1"
 bytes = "1"
 chrono = {version = "0.4", features = ["serde"]}
 dotenv = "0.15.0"
-http-body = {git = "https://github.com/hyperium/http-body", rev = "6d7dd17"}
-http-body-util = {git = "https://github.com/hyperium/http-body", rev = "6d7dd17"}
-hyper = {git = "https://github.com/hyperium/hyper", features = ["full"]}
+http-body = "1.0.0-rc.1"
+http-body-util = {version = "0.1.0-rc.1"}
+hyper = {version = "1.0.0-rc.1", features = ["full"]}
 mime = "0.3"
 route-recognizer = "0.3"
 serde = {version = "1.0", features = ["derive"]}
