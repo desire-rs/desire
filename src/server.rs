@@ -4,6 +4,7 @@ use crate::Result;
 use crate::Router;
 use hyper::server::conn::http1;
 use hyper::service::Service;
+use hyper_util::rt::TokioIo;
 use std::future::Future;
 use std::net::SocketAddr;
 use std::pin::Pin;
@@ -20,7 +21,7 @@ impl Service<HyperRequest> for Svc {
   type Error = crate::error::Error;
   type Future = Pin<Box<dyn Future<Output = Result<Self::Response>> + Send>>;
 
-  fn call(&mut self, req: HyperRequest) -> Self::Future {
+  fn call(&self, req: HyperRequest) -> Self::Future {
     let router = self.router.clone();
     let remote_addr = self.remote_addr.clone();
     let res = dispatch(req, remote_addr, router);
@@ -56,11 +57,12 @@ impl Server {
     loop {
       let router = router.clone();
       let (stream, remote_addr) = listener.accept().await?;
+      let io = TokioIo::new(stream);
       let remote_addr = Arc::new(remote_addr);
       tokio::task::spawn(async move {
         if let Err(err) = http1::Builder::new()
           .serve_connection(
-            stream,
+            io,
             Svc {
               router,
               remote_addr,

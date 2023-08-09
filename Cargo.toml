@@ -33,8 +33,8 @@ bytes = "1"
 chrono = {version = "0.4", features = ["serde"]}
 dotenv = "0.15.0"
 http-body = "1.0.0-rc.2"
-http-body-util = {version = "0.1.0-rc.2"}
-hyper = {version = "1.0.0-rc.2", features = ["full"]}
+http-body-util = {version = "0.1.0-rc.3"}
+hyper = {version = "1.0.0-rc.4", features = ["full"]}
 mime = "0.3"
 route-recognizer = "0.3"
 serde = {version = "1.0", features = ["derive"]}
@@ -43,6 +43,7 @@ serde_urlencoded = "0.7"
 thiserror = "1"
 tokio = {version = "1", features = ["full"]}
 tracing = "0.1"
+hyper-util = { git = "https://github.com/hyperium/hyper-util.git" }
 [dev-dependencies]
 
 [features]
