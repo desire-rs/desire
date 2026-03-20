@@ -6,7 +6,7 @@
 
 **desire** is a minimal Rust web application framework built on hyper.
 - Repository: https://github.com/desire-rs/desire
-- Edition: 2024 (NOT 2021)
+- Edition: 2024
 - License: Apache-2.0
 
 ## Build / Lint / Test Commands
@@ -19,10 +19,7 @@ cargo build
 cargo test
 
 # Run a single test (by name)
-cargo test hello -- --nocapture  # runs tests matching "hello"
-
-# Run tests in a specific file
-cargo test --test integration
+cargo test hello -- --nocapture
 
 # Lint with clippy
 cargo clippy --all-targets --all-features
@@ -32,9 +29,6 @@ cargo fmt
 
 # Check formatting
 cargo fmt -- --check
-
-# Build examples
-cargo build --examples
 ```
 
 ## Code Style Guidelines
@@ -88,14 +82,11 @@ use hyper::http::Extensions;
 pub type Result<T = Response> = std::result::Result<T, Error>;
 
 // Anyhow wrapper for flexible errors
-pub type AnyResult<T> = anyhow::Result<T, anyhow::Error>;
+pub type AnyResult<T> = anyhow::Result<T>;
 
 // Hyper types
 pub type HyperResponse = hyper::Response<Full<Bytes>>;
 pub type HyperRequest = hyper::Request<Incoming>;
-
-// Application-specific
-pub type ApiResult<T> = std::result::Result<Resp<T>, Error>;
 ```
 
 ### Traits
@@ -103,36 +94,10 @@ pub type ApiResult<T> = std::result::Result<Resp<T>, Error>;
 - Bounds: `Send + Sync + 'static` for endpoint/middleware types
 - `IntoResponse` trait for converting types to `Result`
 
-### Async/Await
-- All async handlers use `async fn`
-- Return `Result` or `ApiResult<T>` or types implementing `IntoResponse`
-- Example controller pattern:
-  ```rust
-  pub async fn get_user(req: Request) -> ApiResult<String> {
-      let id = req.param::<String>("id")?;
-      Ok(Resp::data(id))
-  }
-  ```
-
 ### Serde / JSON
 - Use `#[serde(rename = "camelCase")]` for JSON field naming
 - Use `#[serde(skip_serializing_if = "Option::is_none")]` for optional fields
 - Derive `Serialize`, `Deserialize` together
-
-### Response Types
-The framework provides multiple ways to return responses:
-```rust
-// 1. Using IntoResponse (preferred)
-Ok(Resp::data(value))           // JSON response
-"hello"                          // Plain text
-String                           // Plain text
-Response::json(payload)          // Explicit JSON
-Response::with_status(404, msg)  // Status with message
-
-// 2. Tuple syntax (StatusCode, body)
-(200, "OK")                      // Status + string
-(404, "Not found")
-```
 
 ### Module Organization
 ```
@@ -146,33 +111,12 @@ src/
 ├── into_response.rs # IntoResponse trait impls
 ├── server.rs       # Server setup
 ├── types.rs        # Type aliases
-└── fs.rs           # Static file serving
-
-examples/hello/
-├── main.rs         # Entry point
-├── controller/     # Request handlers
-├── service/        # Business logic
-├── model/          # Data structures
-├── middleware/     # Custom middleware
-├── types/          # Response types (Resp<T>, PageData<T>)
-├── error/          # App-specific errors
-└── config/         # Configuration (use once_cell::Lazy)
+└── utils.rs        # Utilities (empty placeholder)
 ```
 
 ### Logging
 - Use `tracing` crate for structured logging
 - Use `#[instrument]` or manual `info!`, `error!`, `debug!`
-- Example: `info!("method: {}", method)`
-
-### Dependencies (Key)
-- `hyper` (1.x) - HTTP server
-- `tokio` - Async runtime
-- `serde` / `serde_json` - Serialization
-- `thiserror` - Error derivation
-- `anyhow` - Flexible error handling
-- `async-trait` - Async trait methods
-- `tracing` - Logging
-- `dotenv` - Environment variables
 
 ## Common Patterns
 
@@ -183,9 +127,9 @@ app.get("/path/:id", controller::handler);
 app.post("/path", controller::create);
 
 // In controller
-pub async fn handler(req: Request) -> ApiResult<Resp<String>> {
+pub async fn handler(req: Request) -> Result<String> {
     let id = req.param::<String>("id")?;
-    Ok(Resp::data(id))
+    Ok(id.into_response())
 }
 ```
 
@@ -216,10 +160,20 @@ let query = req.query::<QueryType>()?;
 let data = req.body::<CreateUserPayload>().await?;
 ```
 
-## Testing
-- Use `cargo test` for unit tests
-- Tests can be in the same file or `tests/` directory
-- Use `#[cfg(test)]` module for inline tests
+### Response Types
+The framework provides multiple ways to return responses:
+```rust
+// Using IntoResponse (preferred)
+Ok(Resp::data(value))           // JSON response
+"hello"                          // Plain text
+String                           // Plain text
+Response::json(payload)          // Explicit JSON
+Response::with_status(404, msg)  // Status with message
+
+// Tuple syntax (StatusCode, body)
+(200, "OK")                      // Status + string
+(404, "Not found")
+```
 
 ## Before Committing
 1. Run `cargo fmt`

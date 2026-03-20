@@ -1,8 +1,8 @@
 use crate::{HyperResponse, Result};
 use bytes::Bytes;
 use http_body_util::Full;
-use hyper::header;
 use hyper::StatusCode;
+use hyper::header;
 
 pub struct Response {
   pub inner: HyperResponse,
