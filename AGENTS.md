@@ -90,6 +90,11 @@ state.rs          StateMap (App state) + TypeMap (per-request data)
 - `ctx.set_cookie` queues into a per-request jar (`Arc<Mutex<Vec>>`); dispatch
   drains it onto the response after the handler — that indirection exists
   because handlers only hold `&Context` while the response is built later.
+- `ctx.body_stream()` consumes the raw body (streaming and buffered
+  extraction are mutually exclusive); after a buffered read it yields the
+  cache as a single chunk. `Pin<Box<dyn Stream…>>` type annotations in
+  handlers MUST include `+ Send` or the future stops being `Send` (the
+  Handler bound then fails confusingly at route registration).
 - OpenAPI is builder-declared (no macro): `OpenApi::new(..).path(PathDoc::get(..)
   .query::<T>().resp::<R>(200, "ok"))` — payload types need
   `#[derive(schemars::JsonSchema)]`; `App::openapi(doc)` mounts

@@ -1,5 +1,11 @@
 # Desire
 
+[![CI](https://github.com/desire-rs/desire/actions/workflows/ci.yml/badge.svg)](https://github.com/desire-rs/desire/actions/workflows/ci.yml)
+[![crates.io](https://img.shields.io/crates/v/desire)](https://crates.io/crates/desire)
+[![docs.rs](https://img.shields.io/docsrs/desire)](https://docs.rs/desire)
+[![License](https://img.shields.io/crates/l/desire)](https://github.com/desire-rs/desire/blob/main/LICENSE)
+![MSRV](https://img.shields.io/badge/MSRV-1.85-dea584)
+
 > A minimal and ergonomic Rust web framework, on hyper.
 
 ```rust
@@ -112,7 +118,7 @@ let app = App::new().nest("/api", api).merge(health_router());
 | Errors | `Error::unauthorized()`, `Error::business(code, msg)`, `Error::internal(...)` (sanitized + logged), custom `From` impls |
 | Server | H1+H2 auto, `tls` feature (rustls + ALPN), graceful shutdown, concurrency limit, 2 MiB default body cap |
 | Static files | `ServeDir` / `ServeFile` with traversal protection, ETag/304, `index.html`, single-range requests (206/416) |
-| Forms & files | `ctx.form_data()` parses `multipart/form-data` (fields + buffered files) |
+| Forms & files | `ctx.form_data()` parses `multipart/form-data` (fields + buffered files); `ctx.body_stream()` for unbuffered uploads |
 | Cookies | `ctx.cookie(name)` to read; `ctx.set_cookie(...)` queues `Set-Cookie` on the response |
 | Realtime | `sse::Event` / `Sse` server-sent events; `ws` feature for WebSocket (`ctx.websocket()`) |
 | Compression | `gzip` feature: response compression negotiating `Accept-Encoding` |

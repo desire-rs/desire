@@ -280,6 +280,28 @@ impl Context {
     Ok(form)
   }
 
+  /// The request body as a stream of chunks, for proxying or large
+  /// uploads that should not be buffered.
+  ///
+  /// Consumes the raw body: afterwards `json`/`form_data`/`body_bytes`
+  /// see an empty body. (Calling it after a buffered read instead
+  /// yields the cached bytes as a single-chunk stream.)
+  pub fn body_stream(&self) -> crate::body::BodyStream {
+    let (inner, cached) = {
+      let mut slot = self.body.lock().expect("body lock poisoned");
+      (slot.inner.take(), slot.cache.clone())
+    };
+    if let Some(bytes) = cached {
+      return Box::pin(tokio_stream::once(Ok(bytes)));
+    }
+    match inner {
+      Some(body) => Box::pin(crate::body::MapBoxError {
+        inner: Box::pin(body.into_data_stream()),
+      }),
+      None => Box::pin(tokio_stream::empty()),
+    }
+  }
+
   /// Adjust the request body size limit (bytes). The framework default
   /// is 2 MiB; the [`body_limit`](crate::middleware::body_limit)
   /// middleware is a nicer way to change it.

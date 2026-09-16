@@ -64,6 +64,33 @@ where
 use http_body::Frame;
 use http_body_util::combinators::UnsyncBoxBody;
 
+/// A stream of raw body chunks with the framework error type.
+pub type BodyStream = Pin<Box<dyn Stream<Item = Result<Bytes, Error>> + Send>>;
+
+/// Maps `Result<Bytes, BoxError>` chunks into the framework error type.
+pub(crate) struct MapBoxError<S> {
+  pub inner: Pin<Box<S>>,
+}
+
+impl<S> Stream for MapBoxError<S>
+where
+  S: Stream<Item = Result<Bytes, crate::types::BoxError>>,
+{
+  type Item = Result<Bytes, Error>;
+
+  fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+    let this = self.get_mut();
+    match this.inner.as_mut().poll_next(cx) {
+      Poll::Pending => Poll::Pending,
+      Poll::Ready(None) => Poll::Ready(None),
+      Poll::Ready(Some(Ok(bytes))) => Poll::Ready(Some(Ok(bytes))),
+      Poll::Ready(Some(Err(e))) => Poll::Ready(Some(Err(Error::Body(format!(
+        "failed to read request body: {e}"
+      ))))),
+    }
+  }
+}
+
 struct FrameStream<S> {
   inner: Pin<Box<S>>,
 }

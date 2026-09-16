@@ -208,3 +208,54 @@ async fn full_response_advertises_accept_ranges() {
   assert_eq!(res.header("accept-ranges"), Some("bytes"));
   std::fs::remove_dir_all(dir).ok();
 }
+
+#[tokio::test]
+async fn dotfiles_are_rejected_by_default() {
+  let dir = unique_dir("dot");
+  let assets = dir.join("assets");
+  std::fs::create_dir_all(&assets).unwrap();
+  std::fs::write(assets.join(".env"), b"SECRET=1").unwrap();
+  std::fs::create_dir_all(assets.join(".git")).unwrap();
+  std::fs::write(assets.join(".git").join("config"), b"repo config").unwrap();
+
+  let app = App::new().route("/static/{*path}", ServeDir::new(assets.clone()));
+  let tc = TestClient::new(app);
+
+  let res = tc.get("/static/.env").send().await;
+  res.assert_status(StatusCode::NOT_FOUND);
+  let res = tc.get("/static/.git/config").send().await;
+  res.assert_status(StatusCode::NOT_FOUND);
+
+  // Opt-in: dotfiles are served.
+  let app = App::new().route("/static/{*path}", ServeDir::new(assets).allow_dotfiles());
+  let tc = TestClient::new(app);
+  let res = tc.get("/static/.env").send().await;
+  res.assert_status_ok();
+  assert_eq!(res.text(), "SECRET=1");
+
+  std::fs::remove_dir_all(dir).ok();
+}
+
+#[tokio::test]
+async fn cache_control_header_is_emitted() {
+  let (app, dir) = fixture_app();
+  let tc = TestClient::new(app);
+  let res = tc.get("/static/hello.txt").send().await;
+  assert_eq!(res.header("cache-control"), None);
+
+  let dir2 = unique_dir("cc");
+  let assets = dir2.join("assets");
+  std::fs::create_dir_all(&assets).unwrap();
+  std::fs::write(assets.join("a.txt"), b"a").unwrap();
+  let app = App::new().route(
+    "/static/{*path}",
+    ServeDir::new(assets).cache_control("public, max-age=3600"),
+  );
+  let tc = TestClient::new(app);
+  let res = tc.get("/static/a.txt").send().await;
+  res.assert_status_ok();
+  assert_eq!(res.header("cache-control"), Some("public, max-age=3600"));
+
+  std::fs::remove_dir_all(dir).ok();
+  std::fs::remove_dir_all(dir2).ok();
+}

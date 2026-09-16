@@ -635,3 +635,59 @@ async fn multipart_wrong_content_type_is_400() {
     .await;
   res.assert_status(StatusCode::BAD_REQUEST);
 }
+
+// ---- streaming request body ----
+
+#[tokio::test]
+async fn body_stream_delivers_chunks() {
+  use futures_core::Stream;
+  use std::pin::Pin;
+
+  async fn proxy(ctx: Context) -> Result<Resp<usize>> {
+    let mut stream: Pin<Box<dyn Stream<Item = Result<Bytes, Error>> + Send>> =
+      Box::pin(ctx.body_stream());
+    let mut total = 0usize;
+    while let Some(chunk) = stream.as_mut().next().await {
+      total += chunk?.len();
+    }
+    Ok(Resp::ok(total))
+  }
+
+  use futures_util::StreamExt as _;
+
+  let app = App::new().route("/proxy", post(proxy));
+  let tc = TestClient::new(app);
+  let res = tc
+    .post("/proxy")
+    .body(Bytes::from(vec![b'x'; 100]))
+    .send()
+    .await;
+  res.assert_status_ok();
+  assert_eq!(res.assert_ok_data::<usize>(), 100);
+}
+
+#[tokio::test]
+async fn body_stream_after_buffered_read_yields_cache() {
+  async fn handler(ctx: Context) -> Result<Resp<String>> {
+    let bytes = ctx.body_bytes().await?;
+    let mut text = String::new();
+    let mut stream = ctx.body_stream();
+    while let Some(chunk) = stream.as_mut().next().await {
+      text.push_str(&String::from_utf8_lossy(&chunk?));
+    }
+    assert_eq!(bytes.as_ref(), text.as_bytes());
+    Ok(Resp::ok(text))
+  }
+
+  use futures_util::StreamExt as _;
+
+  let app = App::new().route("/echo", post(handler));
+  let tc = TestClient::new(app);
+  let res = tc
+    .post("/echo")
+    .body(Bytes::from_static(b"cached!"))
+    .send()
+    .await;
+  res.assert_status_ok();
+  assert_eq!(res.assert_ok_data::<String>(), "cached!");
+}

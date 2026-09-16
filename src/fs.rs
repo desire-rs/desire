@@ -16,32 +16,60 @@ use crate::{Error, Handler, Response, Result, body};
 /// Serve files from a directory. Mount it on a wildcard route:
 ///
 /// ```ignore
-/// app.route("/static/{*path}", ServeDir::new("assets"));
+/// app.route("/static/{*path}", ServeDir::new("assets").cache_control("public, max-age=86400"));
 /// ```
 ///
-/// Traversal attempts (`..`, backslashes, absolute segments) are
-/// rejected; symlinks that escape the root are refused via
-/// canonicalization. Directory requests serve `index.html` if present.
+/// Traversal attempts (`..`, backslashes, absolute segments) and
+/// dotfile segments (`.git`, `.env`, …) are rejected — pass
+/// [`ServeDir::allow_dotfiles`] to serve them; symlinks that escape
+/// the root are refused via canonicalization. Directory requests
+/// serve `index.html` if present.
 pub struct ServeDir {
   root: PathBuf,
+  cache_control: Option<String>,
+  allow_dotfiles: bool,
 }
 
 impl ServeDir {
   /// Serve files under this directory.
   pub fn new(root: impl Into<PathBuf>) -> Self {
-    ServeDir { root: root.into() }
+    ServeDir {
+      root: root.into(),
+      cache_control: None,
+      allow_dotfiles: false,
+    }
+  }
+
+  /// Emit a `Cache-Control` header on successful responses.
+  pub fn cache_control(mut self, value: impl Into<String>) -> Self {
+    self.cache_control = Some(value.into());
+    self
+  }
+
+  /// Serve dotfile segments (`.hidden`, `.well-known/…`). Off by
+  /// default so secrets like `.git/config` or `.env` never leak.
+  pub fn allow_dotfiles(mut self) -> Self {
+    self.allow_dotfiles = true;
+    self
   }
 }
 
 impl Handler<()> for ServeDir {
   fn call(&self, ctx: Context) -> crate::types::BoxFuture<'static, Result> {
     let root = self.root.clone();
+    let cache_control = self.cache_control.clone();
+    let allow_dotfiles = self.allow_dotfiles;
     Box::pin(async move {
       // Wildcard routes carry `{*path}`; a route registered on the bare
       // prefix has no param and serves the root (i.e. index.html).
       let rel = ctx.param_raw("path").unwrap_or("");
       let decoded = crate::context::percent_decode(rel);
-      if !decoded.is_empty() && !is_safe_relative_path(&decoded) {
+      let is_dotfile = decoded
+        .split('/')
+        .any(|seg| seg.starts_with('.') && seg != ".");
+      if !decoded.is_empty()
+        && (!is_safe_relative_path(&decoded) || (is_dotfile && !allow_dotfiles))
+      {
         return Err(Error::not_found("file"));
       }
 
@@ -65,7 +93,11 @@ impl Handler<()> for ServeDir {
       } else {
         canonical
       };
-      file_response(ctx.headers(), &target).await
+      let mut res = file_response(ctx.headers(), &target).await?;
+      if let Some(cc) = &cache_control {
+        set(&mut res, hyper::header::CACHE_CONTROL, cc);
+      }
+      Ok(res)
     })
   }
 }
@@ -77,23 +109,38 @@ impl Handler<()> for ServeDir {
 /// ```
 pub struct ServeFile {
   path: PathBuf,
+  cache_control: Option<String>,
 }
 
 impl ServeFile {
   /// Serve this exact file.
   pub fn new(path: impl Into<PathBuf>) -> Self {
-    ServeFile { path: path.into() }
+    ServeFile {
+      path: path.into(),
+      cache_control: None,
+    }
+  }
+
+  /// Emit a `Cache-Control` header on successful responses.
+  pub fn cache_control(mut self, value: impl Into<String>) -> Self {
+    self.cache_control = Some(value.into());
+    self
   }
 }
 
 impl Handler<()> for ServeFile {
   fn call(&self, ctx: Context) -> crate::types::BoxFuture<'static, Result> {
     let path = self.path.clone();
+    let cache_control = self.cache_control.clone();
     Box::pin(async move {
       let canonical = tokio::fs::canonicalize(&path)
         .await
         .map_err(|_| Error::not_found("file"))?;
-      file_response(ctx.headers(), &canonical).await
+      let mut res = file_response(ctx.headers(), &canonical).await?;
+      if let Some(cc) = &cache_control {
+        set(&mut res, hyper::header::CACHE_CONTROL, cc);
+      }
+      Ok(res)
     })
   }
 }
