@@ -144,6 +144,10 @@ async fn get_user_ok() {
 }
 ```
 
+## Articles
+
+中文介绍与教程见 [docs/articles](docs/articles/README.md):发布推广文、十分钟上手教程、设计哲学与取舍。
+
 ## License
 
 Apache-2.0. See [LICENSE](LICENSE).
