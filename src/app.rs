@@ -3,7 +3,7 @@
 
 use std::collections::HashMap;
 use std::net::SocketAddr;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 use bytes::Bytes;
 use http_body_util::BodyExt;
@@ -107,6 +107,28 @@ impl App {
     self
   }
 
+  /// Serve a generated OpenAPI document at `/openapi.json` and a
+  /// Swagger UI at `/docs` (requires the `openapi` feature).
+  #[cfg(feature = "openapi")]
+  pub fn openapi(mut self, doc: crate::openapi::OpenApi) -> Self {
+    use crate::router::{IntoMethodRouter as _, get};
+    use crate::{Html, Response};
+
+    let json = doc.to_json();
+    let json_route = move || {
+      let json = json.clone();
+      async move { Response::json(&json) }
+    };
+    self.router = self
+      .router
+      .route("/openapi.json", json_route.into_method_router())
+      .route(
+        "/docs",
+        get(|| async { Html(crate::openapi::SWAGGER_HTML) }),
+      );
+    self
+  }
+
   /// Bind and serve, with Ctrl+C graceful shutdown by default.
   pub async fn run(self, addr: &str) -> Result<()> {
     crate::server::Server::new(self)
@@ -183,6 +205,7 @@ where
     .boxed_unsync();
   // hyper parks the upgrade handle in request extensions.
   let on_upgrade = parts.extensions.remove::<hyper::upgrade::OnUpgrade>();
+  let cookies_out: Arc<Mutex<Vec<cookie::Cookie<'static>>>> = Arc::default();
   let method = parts.method;
   let path = parts.uri.path().to_owned();
 
@@ -230,6 +253,7 @@ where
         Arc::clone(&app.state),
         remote_addr,
         on_upgrade,
+        Arc::clone(&cookies_out),
       );
 
       let next = Next {
@@ -244,6 +268,7 @@ where
       };
 
       let mut hyper_res = response.into_hyper();
+      apply_set_cookies(&mut hyper_res, &cookies_out);
       if method == Method::HEAD {
         *hyper_res.body_mut() = body::empty();
       }
@@ -262,16 +287,33 @@ where
         Arc::clone(&app.state),
         remote_addr,
         on_upgrade,
+        Arc::clone(&cookies_out),
       );
       let next = Next {
         middlewares: Arc::clone(&app.global),
         handler: Arc::clone(&app.fallback),
         index: 0,
       };
-      match next.run(ctx).await {
-        Ok(res) => res.into_hyper(),
-        Err(err) => err.into_response().into_hyper(),
-      }
+      let response = match next.run(ctx).await {
+        Ok(res) => res,
+        Err(err) => err.into_response(),
+      };
+      let mut hyper_res = response.into_hyper();
+      apply_set_cookies(&mut hyper_res, &cookies_out);
+      hyper_res
+    }
+  }
+}
+
+/// Drain the request's queued `Set-Cookie` values onto the response.
+fn apply_set_cookies(
+  res: &mut crate::types::HyperResponse,
+  cookies_out: &Mutex<Vec<cookie::Cookie<'static>>>,
+) {
+  let jar = cookies_out.lock().expect("cookie lock poisoned");
+  for cookie in jar.iter() {
+    if let Ok(value) = hyper::header::HeaderValue::from_str(&cookie.to_string()) {
+      res.headers_mut().append(hyper::header::SET_COOKIE, value);
     }
   }
 }

@@ -51,6 +51,7 @@ error.rs          Error enum → renders as the Resp envelope (Io/Json/Query/Par
 body.rs           Body type + constructors (empty/full/json/from_stream)
 server.rs         hyper-util auto server (H1+H2), graceful shutdown, concurrency
 sse.rs            Server-Sent Events (Event builder + Sse response)
+openapi.rs        OpenAPI doc builder + Swagger UI (feature = "openapi", schemars)
 ws.rs             WebSocket upgrade (feature = "ws", tokio-tungstenite)
 tls.rs            rustls config (feature = "tls")
 fs.rs             ServeDir/ServeFile (traversal-safe, ETag/304, index.html)
@@ -86,6 +87,13 @@ state.rs          StateMap (App state) + TypeMap (per-request data)
   `tests/websocket.rs`); TestClient cannot drive upgrades.
 - ServeDir supports single-range requests (206 + Content-Range, 416 on
   unsatisfiable); malformed/multi ranges serve the full body (RFC-compliant).
+- `ctx.set_cookie` queues into a per-request jar (`Arc<Mutex<Vec>>`); dispatch
+  drains it onto the response after the handler — that indirection exists
+  because handlers only hold `&Context` while the response is built later.
+- OpenAPI is builder-declared (no macro): `OpenApi::new(..).path(PathDoc::get(..)
+  .query::<T>().resp::<R>(200, "ok"))` — payload types need
+  `#[derive(schemars::JsonSchema)]`; `App::openapi(doc)` mounts
+  `/openapi.json` + `/docs`.
 
 ## Common Patterns
 

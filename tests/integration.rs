@@ -533,3 +533,105 @@ async fn custom_fallback_handler() {
   res.assert_status(StatusCode::IM_A_TEAPOT);
   assert_eq!(res.text(), "short and stout");
 }
+
+// ---- cookies ----
+
+#[tokio::test]
+async fn set_cookie_reaches_response_headers() {
+  async fn login(ctx: Context) -> Resp<String> {
+    ctx.set_cookie(
+      desire::cookie::Cookie::build(("session", "abc123"))
+        .http_only(true)
+        .path("/")
+        .build(),
+    );
+    Resp::ok("logged in".to_owned())
+  }
+
+  let app = App::new().route("/login", post(login));
+  let tc = TestClient::new(app);
+  let res = tc.post("/login").send().await;
+  res.assert_status_ok();
+  assert_eq!(
+    res.header("set-cookie"),
+    Some("session=abc123; HttpOnly; Path=/")
+  );
+}
+
+#[tokio::test]
+async fn cookie_read_back() {
+  async fn whoami(ctx: Context) -> Resp<String> {
+    let session = ctx.cookie("session").map(|c| c.value().to_owned());
+    Resp::ok(session.unwrap_or_else(|| "anonymous".to_owned()))
+  }
+
+  let app = App::new().route("/me", get(whoami));
+  let tc = TestClient::new(app);
+
+  let res = tc.get("/me").send().await;
+  res.assert_status_ok();
+  assert_eq!(res.assert_ok_data::<String>(), "anonymous");
+
+  let res = tc.get("/me").header("cookie", "session=xyz").send().await;
+  res.assert_status_ok();
+  assert_eq!(res.assert_ok_data::<String>(), "xyz");
+}
+
+// ---- multipart ----
+
+#[tokio::test]
+async fn multipart_form_fields_and_files() {
+  async fn upload(ctx: Context) -> Result<Resp<String>> {
+    let form = ctx.form_data().await?;
+    let title = form
+      .field("title")
+      .ok_or_else(|| Error::msg("missing title"))?;
+    let file = form
+      .file("attachment")
+      .ok_or_else(|| Error::msg("missing file"))?;
+    assert_eq!(file.filename.as_deref(), Some("notes.txt"));
+    assert_eq!(file.content_type.as_deref(), Some("text/plain"));
+    assert_eq!(file.bytes.as_ref(), b"FILE DATA");
+    Ok(Resp::ok(format!("{title}:{}", file.bytes.len())))
+  }
+
+  let body = "--XBOUNDARY\r\n\
+              Content-Disposition: form-data; name=\"title\"\r\n\
+              \r\n\
+              my upload\r\n\
+              --XBOUNDARY\r\n\
+              Content-Disposition: form-data; name=\"attachment\"; filename=\"notes.txt\"\r\n\
+              Content-Type: text/plain\r\n\
+              \r\n\
+              FILE DATA\r\n\
+              --XBOUNDARY--\r\n";
+
+  let app = App::new().route("/upload", post(upload));
+  let tc = TestClient::new(app);
+  let res = tc
+    .post("/upload")
+    .header("content-type", "multipart/form-data; boundary=XBOUNDARY")
+    .body(Bytes::from_static(body.as_bytes()))
+    .send()
+    .await;
+  res.assert_status_ok();
+  assert_eq!(res.assert_ok_data::<String>(), "my upload:9");
+}
+
+#[tokio::test]
+async fn multipart_wrong_content_type_is_400() {
+  async fn upload(ctx: Context) -> Result<Resp<()>> {
+    let _form = ctx.form_data().await?;
+    Ok(Resp::ok(()))
+  }
+
+  let app = App::new().route("/upload", post(upload));
+  let tc = TestClient::new(app);
+  let res = tc
+    .post("/upload")
+    .header("content-type", "application/json")
+    .body(Bytes::from_static(b"{}"))
+    .send()
+    .await;
+  res.assert_status(StatusCode::BAD_REQUEST);
+}

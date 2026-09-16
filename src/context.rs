@@ -15,6 +15,7 @@ use hyper::{HeaderMap, Method, Uri};
 use serde::de::DeserializeOwned;
 
 use crate::error::{missing_param, param_error};
+pub use crate::form::{FormData, UploadedFile};
 use crate::state::{self, StateMap};
 use crate::types::AnyBody;
 use crate::{Error, Result};
@@ -31,7 +32,11 @@ pub struct Context {
   params: HashMap<String, String>,
   body: Mutex<BodySlot>,
   extensions: crate::state::TypeMap,
+  // Read only behind the ws feature; kept unconditionally so dispatch
+  // can drain the extension regardless of features.
+  #[cfg_attr(not(feature = "ws"), allow(dead_code))]
   on_upgrade: Mutex<Option<hyper::upgrade::OnUpgrade>>,
+  cookies_out: Arc<Mutex<Vec<Cookie<'static>>>>,
   state: Arc<StateMap>,
   remote_addr: Option<SocketAddr>,
 }
@@ -54,6 +59,7 @@ impl Context {
     state: Arc<StateMap>,
     remote_addr: Option<SocketAddr>,
     on_upgrade: Option<hyper::upgrade::OnUpgrade>,
+    cookies_out: Arc<Mutex<Vec<Cookie<'static>>>>,
   ) -> Self {
     Context {
       method,
@@ -67,6 +73,7 @@ impl Context {
       }),
       extensions: crate::state::TypeMap::default(),
       on_upgrade: Mutex::new(on_upgrade),
+      cookies_out,
       state,
       remote_addr,
     }
@@ -226,6 +233,53 @@ impl Context {
       .map_err(|e| Error::Body(format!("body is not valid utf-8: {e}")))
   }
 
+  /// Parse a `multipart/form-data` body (file uploads, HTML forms).
+  ///
+  /// The body is buffered first (subject to the body size limit), so
+  /// prefer `json`/`form` for plain JSON/urlencoded requests.
+  pub async fn form_data(&self) -> Result<FormData> {
+    let Some(ct) = self.header_str(hyper::header::CONTENT_TYPE.as_str()) else {
+      return Err(Error::Body(
+        "expected a multipart/form-data content-type".to_owned(),
+      ));
+    };
+    let boundary = multer::parse_boundary(&ct)
+      .map_err(|e| Error::Body(format!("invalid multipart boundary: {e}")))?;
+    let bytes = self.body_bytes().await?;
+    let stream = tokio_stream::once(Ok::<Bytes, std::convert::Infallible>(bytes));
+    let mut multipart = multer::Multipart::new(stream, boundary);
+
+    let mut form = FormData::default();
+    loop {
+      match multipart.next_field().await {
+        Ok(Some(field)) => {
+          let name = field.name().unwrap_or_default().to_owned();
+          let filename = field.file_name().map(ToOwned::to_owned);
+          let content_type = field.content_type().map(|m| m.to_string());
+          let data = field
+            .bytes()
+            .await
+            .map_err(|e| Error::Body(format!("failed to read multipart field: {e}")))?;
+          if filename.is_some() {
+            form.files.push(UploadedFile {
+              name,
+              filename,
+              content_type,
+              bytes: data,
+            });
+          } else {
+            form
+              .fields
+              .push((name, String::from_utf8_lossy(&data).into_owned()));
+          }
+        }
+        Ok(None) => break,
+        Err(e) => return Err(Error::Body(format!("failed to parse multipart body: {e}"))),
+      }
+    }
+    Ok(form)
+  }
+
   /// Adjust the request body size limit (bytes). The framework default
   /// is 2 MiB; the [`body_limit`](crate::middleware::body_limit)
   /// middleware is a nicer way to change it.
@@ -273,6 +327,24 @@ impl Context {
   }
 
   // ---- cookies ----
+
+  /// Queue a `Set-Cookie` header on the response. Queued cookies are
+  /// applied by the framework after the handler returns, so this works
+  /// in handlers (which only get `&Context`).
+  ///
+  /// ```ignore
+  /// ctx.set_cookie(cookie::Cookie::build(("session", token)).http_only(true).finish());
+  /// ```
+  ///
+  /// To clear a cookie, queue a removal:
+  /// `Cookie::build("session").removal()`.
+  pub fn set_cookie(&self, cookie: Cookie<'static>) {
+    self
+      .cookies_out
+      .lock()
+      .expect("cookie lock poisoned")
+      .push(cookie);
+  }
 
   /// Read a request cookie.
   pub fn cookie(&self, name: &str) -> Option<Cookie<'static>> {

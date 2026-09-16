@@ -112,7 +112,11 @@ let app = App::new().nest("/api", api).merge(health_router());
 | Errors | `Error::unauthorized()`, `Error::business(code, msg)`, `Error::internal(...)` (sanitized + logged), custom `From` impls |
 | Server | H1+H2 auto, `tls` feature (rustls + ALPN), graceful shutdown, concurrency limit, 2 MiB default body cap |
 | Static files | `ServeDir` / `ServeFile` with traversal protection, ETag/304, `index.html`, single-range requests (206/416) |
+| Forms & files | `ctx.form_data()` parses `multipart/form-data` (fields + buffered files) |
+| Cookies | `ctx.cookie(name)` to read; `ctx.set_cookie(...)` queues `Set-Cookie` on the response |
 | Realtime | `sse::Event` / `Sse` server-sent events; `ws` feature for WebSocket (`ctx.websocket()`) |
+| Compression | `gzip` feature: response compression negotiating `Accept-Encoding` |
+| OpenAPI | `openapi` feature: builder-generated document at `/openapi.json` + Swagger UI at `/docs` |
 | Testing | `TestClient::new(app).get("/x").send()` — no sockets |
 
 ## Examples
@@ -123,6 +127,7 @@ let app = App::new().nest("/api", api).merge(health_router());
 - [`static_files`](examples/static_files.rs) — serving a directory
 - [`sse`](examples/sse.rs) — server-sent events
 - [`ws`](examples/ws.rs) — WebSocket echo (requires `--features ws`)
+- [`openapi`](examples/openapi.rs) — OpenAPI + Swagger UI (requires `--features openapi`)
 - [`graceful`](examples/graceful.rs) — graceful shutdown
 - [`tls`](examples/tls.rs) — HTTPS (requires `--features tls`)
 

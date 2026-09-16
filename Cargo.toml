@@ -27,6 +27,8 @@ include = [
 default = []
 tls = ["dep:rustls", "dep:tokio-rustls", "dep:rustls-pemfile"]
 ws = ["dep:tokio-tungstenite"]
+gzip = ["dep:async-compression", "dep:tokio-util"]
+openapi = ["dep:schemars"]
 
 [dependencies]
 bytes = "1"
@@ -39,6 +41,7 @@ hyper-util = { version = "0.1", features = ["full"] }
 httpdate = "1"
 matchit = "0.8"
 mime_guess = "2"
+multer = "3"
 rustls = { version = "0.23", optional = true, default-features = false, features = ["ring", "std"] }
 rustls-pemfile = { version = "2", optional = true }
 serde = { version = "1", features = ["derive"] }
@@ -48,9 +51,29 @@ thiserror = "2"
 tokio = { version = "1", features = ["full"] }
 tokio-tungstenite = { version = "0.26", optional = true, default-features = false, features = ["handshake"] }
 tokio-rustls = { version = "0.26", optional = true, default-features = false, features = ["ring"] }
+tokio-stream = "0.1"
 tracing = "0.1"
 
+[dependencies.schemars]
+version = "1"
+optional = true
+
+[dev-dependencies.schemars]
+version = "1"
+features = ["derive"]
+
+[dependencies.async-compression]
+version = "0.4"
+optional = true
+features = ["gzip", "tokio"]
+
+[dependencies.tokio-util]
+version = "0.7"
+optional = true
+features = ["io"]
+
 [dev-dependencies]
+flate2 = "1"
 futures-util = "0.3"
 tokio-stream = "0.1"
 tokio-tungstenite = { version = "0.26", features = ["connect", "handshake"] }
@@ -63,3 +86,7 @@ required-features = ["tls"]
 [[example]]
 name = "ws"
 required-features = ["ws"]
+
+[[example]]
+name = "openapi"
+required-features = ["openapi"]

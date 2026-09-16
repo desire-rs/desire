@@ -509,3 +509,18 @@ features:`tls`(rustls 0.23 / tokio-rustls / rustls-pemfile)。
    → `WebSocketUpgrade::on_upgrade(cb)` 构建 101(handshake derive accept key)并
    spawn 回调;hyper `OnUpgrade` 从请求 extensions 摘取后经 Context 传递,
    `Upgraded` 经 `TokioIo` 桥接 tungstenite;真实 socket 回显测试覆盖
+
+## 19. 追加能力(第二轮:表单/压缩/文档)
+
+1. **multipart 表单**(`form.rs` + `ctx.form_data()`):multer 解析,缓冲式
+   `FormData { fields, files }`(受 body 上限约束);`tokio-stream` 转正为依赖
+2. **Cookie 写入**:`ctx.set_cookie(Cookie)` 入 per-request jar
+   (`Arc<Mutex<Vec>>`),dispatch 在 handler 之后统一附加 `Set-Cookie` ——
+   解决 handler 只有 `&Context` 而响应后置构建的结构性矛盾
+3. **gzip 压缩**(feature `gzip`,async-compression + tokio-util):
+   `gzip()` 中间件按 `Accept-Encoding` 协商,流式编码,去掉 Content-Length,
+   加 Vary;`Error → io::Error` 桥接实现 StreamReader 对接
+4. **OpenAPI**(feature `openapi`,schemars 1.x):builder 声明
+   (`PathDoc::get(..).query::<T>().body::<T>().resp::<R>(200,..)`),
+   信封 schema 自动包裹 data 类型,`App::openapi` 挂载 `/openapi.json`
+   + Swagger UI `/docs`

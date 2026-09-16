@@ -45,6 +45,12 @@ impl Response {
     self.inner.headers_mut()
   }
 
+  /// Mutable access to the response body (e.g. to swap in a compressed
+  /// or transformed body).
+  pub fn body_mut(&mut self) -> &mut crate::Body {
+    self.inner.body_mut()
+  }
+
   /// A 200 `text/plain; charset=utf-8` response.
   pub fn text(s: impl Into<String>) -> Self {
     raw_response(

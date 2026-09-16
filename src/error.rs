@@ -72,6 +72,13 @@ pub enum Error {
   Io(#[from] std::io::Error),
 }
 
+/// Bridge into `std::io` adapters (e.g. `tokio_util::io::StreamReader`).
+impl From<Error> for std::io::Error {
+  fn from(e: Error) -> Self {
+    std::io::Error::other(e.to_string())
+  }
+}
+
 impl From<std::convert::Infallible> for Error {
   fn from(e: std::convert::Infallible) -> Self {
     match e {}

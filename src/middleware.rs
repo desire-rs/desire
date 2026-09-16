@@ -216,3 +216,46 @@ fn apply_cors(res: &mut crate::Response, config: CorsConfig, origin: Option<&str
   }
   *res.headers_mut() = headers;
 }
+
+/// gzip response compression for clients that send
+/// `Accept-Encoding: gzip` (requires the `gzip` feature).
+///
+/// Skips responses that already carry a `Content-Encoding`. The
+/// `Content-Length` header is dropped (the stream length is unknown
+/// until encoding completes).
+#[cfg(feature = "gzip")]
+pub fn gzip() -> impl Middleware {
+  |ctx: Context, next: Next| async move {
+    let accepts_gzip = ctx
+      .header(hyper::header::ACCEPT_ENCODING.as_str())
+      .is_some_and(|v| {
+        v.split(',')
+          .any(|part| part.split(';').next().unwrap_or("").trim() == "gzip")
+      });
+
+    let inner = async {
+      let mut res = next.run(ctx).await?;
+      if accepts_gzip && !res.headers().contains_key(hyper::header::CONTENT_ENCODING) {
+        use http_body_util::BodyExt as _;
+        let body = std::mem::replace(res.body_mut(), crate::body::empty());
+        let reader = tokio_util::io::StreamReader::new(body.into_data_stream());
+        let encoder = async_compression::tokio::bufread::GzipEncoder::new(reader);
+        *res.body_mut() = crate::body::from_stream(tokio_util::io::ReaderStream::new(encoder));
+
+        let headers = res.headers_mut();
+        headers.remove(hyper::header::CONTENT_LENGTH);
+        headers.insert(
+          hyper::header::CONTENT_ENCODING,
+          HeaderValue::from_static("gzip"),
+        );
+        headers.append(
+          hyper::header::VARY,
+          HeaderValue::from_static("Accept-Encoding"),
+        );
+      }
+      Ok(res)
+    };
+    let out: Result = inner.await;
+    out
+  }
+}
