@@ -131,3 +131,80 @@ async fn serve_file_by_exact_path() {
 
   std::fs::remove_dir_all(dir).ok();
 }
+
+#[tokio::test]
+async fn range_request_returns_partial_content() {
+  let (app, dir) = fixture_app();
+  let tc = TestClient::new(app);
+
+  // "hello static" is 12 bytes.
+  let res = tc
+    .get("/static/hello.txt")
+    .header("range", "bytes=0-4")
+    .send()
+    .await;
+  res.assert_status(StatusCode::PARTIAL_CONTENT);
+  assert_eq!(res.text(), "hello");
+  assert_eq!(res.header("content-range"), Some("bytes 0-4/12"));
+
+  let res = tc
+    .get("/static/hello.txt")
+    .header("range", "bytes=6-")
+    .send()
+    .await;
+  res.assert_status(StatusCode::PARTIAL_CONTENT);
+  assert_eq!(res.text(), "static");
+
+  // suffix: last 6 bytes
+  let res = tc
+    .get("/static/hello.txt")
+    .header("range", "bytes=-6")
+    .send()
+    .await;
+  res.assert_status(StatusCode::PARTIAL_CONTENT);
+  assert_eq!(res.text(), "static");
+
+  std::fs::remove_dir_all(dir).ok();
+}
+
+#[tokio::test]
+async fn range_unsatisfiable_is_416() {
+  let (app, dir) = fixture_app();
+  let tc = TestClient::new(app);
+  let res = tc
+    .get("/static/hello.txt")
+    .header("range", "bytes=999-")
+    .send()
+    .await;
+  res.assert_status(StatusCode::RANGE_NOT_SATISFIABLE);
+  assert_eq!(res.header("content-range"), Some("bytes */12"));
+  std::fs::remove_dir_all(dir).ok();
+}
+
+#[tokio::test]
+async fn malformed_range_serves_full_body() {
+  let (app, dir) = fixture_app();
+  let tc = TestClient::new(app);
+
+  for garbage in ["bytes=abc", "items=0-2", "bytes=5-2", "bytes=0-1,3-4"] {
+    let res = tc
+      .get("/static/hello.txt")
+      .header("range", garbage)
+      .send()
+      .await;
+    res.assert_status(StatusCode::OK);
+    assert_eq!(res.text(), "hello static", "garbage range: {garbage}");
+  }
+
+  std::fs::remove_dir_all(dir).ok();
+}
+
+#[tokio::test]
+async fn full_response_advertises_accept_ranges() {
+  let (app, dir) = fixture_app();
+  let tc = TestClient::new(app);
+  let res = tc.get("/static/hello.txt").send().await;
+  res.assert_status_ok();
+  assert_eq!(res.header("accept-ranges"), Some("bytes"));
+  std::fs::remove_dir_all(dir).ok();
+}

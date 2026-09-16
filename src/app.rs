@@ -177,10 +177,12 @@ where
   B: hyper::body::Body<Data = Bytes> + Send + 'static,
   B::Error: Into<crate::types::BoxError>,
 {
-  let (parts, incoming) = req.into_parts();
+  let (mut parts, incoming) = req.into_parts();
   let inner = incoming
     .map_err(|e| -> crate::types::BoxError { e.into() })
     .boxed_unsync();
+  // hyper parks the upgrade handle in request extensions.
+  let on_upgrade = parts.extensions.remove::<hyper::upgrade::OnUpgrade>();
   let method = parts.method;
   let path = parts.uri.path().to_owned();
 
@@ -227,6 +229,7 @@ where
         app.max_body_size,
         Arc::clone(&app.state),
         remote_addr,
+        on_upgrade,
       );
 
       let next = Next {
@@ -258,6 +261,7 @@ where
         app.max_body_size,
         Arc::clone(&app.state),
         remote_addr,
+        on_upgrade,
       );
       let next = Next {
         middlewares: Arc::clone(&app.global),

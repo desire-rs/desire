@@ -40,10 +40,13 @@ pub mod resp;
 pub mod response;
 pub mod router;
 pub mod server;
+pub mod sse;
 pub mod state;
 #[cfg(feature = "tls")]
 pub mod tls;
 pub mod types;
+#[cfg(feature = "ws")]
+pub mod ws;
 
 /// In-memory test client: `TestClient::new(app).get("/x").send()`.
 pub mod test;
@@ -65,6 +68,8 @@ pub use types::{BoxError, BoxFuture, Result};
 
 #[cfg(feature = "tls")]
 pub use tls::TlsConfig;
+#[cfg(feature = "ws")]
+pub use ws::{Message as WsMessage, WebSocket, WebSocketUpgrade};
 
 /// Re-exported HTTP primitives (`http::Method`, `http::StatusCode`, ...).
 pub use hyper::http;
@@ -87,8 +92,11 @@ pub mod prelude {
   pub use crate::router::{
     MethodRouter, Router, connect, delete, get, head, options, patch, post, put, trace,
   };
+  pub use crate::sse::{Event, Sse};
   pub use crate::test::TestClient;
   pub use crate::{App, Result, Server};
+  #[cfg(feature = "ws")]
+  pub use crate::{WebSocket, WebSocketUpgrade};
   pub use hyper::http::Method;
   pub use hyper::http::StatusCode;
 }

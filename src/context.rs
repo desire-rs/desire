@@ -31,6 +31,7 @@ pub struct Context {
   params: HashMap<String, String>,
   body: Mutex<BodySlot>,
   extensions: crate::state::TypeMap,
+  on_upgrade: Mutex<Option<hyper::upgrade::OnUpgrade>>,
   state: Arc<StateMap>,
   remote_addr: Option<SocketAddr>,
 }
@@ -52,6 +53,7 @@ impl Context {
     max_body_size: usize,
     state: Arc<StateMap>,
     remote_addr: Option<SocketAddr>,
+    on_upgrade: Option<hyper::upgrade::OnUpgrade>,
   ) -> Self {
     Context {
       method,
@@ -64,6 +66,7 @@ impl Context {
         limit: max_body_size,
       }),
       extensions: crate::state::TypeMap::default(),
+      on_upgrade: Mutex::new(on_upgrade),
       state,
       remote_addr,
     }
@@ -232,6 +235,41 @@ impl Context {
 
   fn header_str(&self, name: &str) -> Option<String> {
     self.headers.get(name)?.to_str().ok().map(ToOwned::to_owned)
+  }
+
+  // ---- websocket ----
+
+  /// Begin a WebSocket handshake. Returns a handle to complete it with
+  /// [`WebSocketUpgrade::on_upgrade`](crate::ws::WebSocketUpgrade), or
+  /// an error if this is not a websocket request (requires the `ws`
+  /// feature).
+  #[cfg(feature = "ws")]
+  pub fn websocket(&self) -> Result<crate::ws::WebSocketUpgrade> {
+    let is_websocket = self
+      .header("upgrade")
+      .is_some_and(|v| v.eq_ignore_ascii_case("websocket"));
+    let version_ok = self
+      .header("sec-websocket-version")
+      .is_none_or(|v| v.trim() == "13");
+    let key = self.header("sec-websocket-key");
+    let on_upgrade = self
+      .on_upgrade
+      .lock()
+      .expect("upgrade lock poisoned")
+      .take();
+
+    if !is_websocket || !version_ok || key.is_none() {
+      return Err(Error::bad_request("not a websocket handshake"));
+    }
+    let Some(on_upgrade) = on_upgrade else {
+      return Err(Error::bad_request(
+        "connection upgrade is unavailable on this route",
+      ));
+    };
+    Ok(crate::ws::WebSocketUpgrade {
+      key: key.expect("checked above").to_owned(),
+      on_upgrade,
+    })
   }
 
   // ---- cookies ----

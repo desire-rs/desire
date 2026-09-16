@@ -72,6 +72,12 @@ pub enum Error {
   Io(#[from] std::io::Error),
 }
 
+impl From<std::convert::Infallible> for Error {
+  fn from(e: std::convert::Infallible) -> Self {
+    match e {}
+  }
+}
+
 impl Error {
   /// A 400 error with a custom message.
   pub fn bad_request(msg: impl Into<String>) -> Self {

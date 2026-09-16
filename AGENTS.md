@@ -50,6 +50,8 @@ into_response.rs  IntoResponse trait + impls (Json<T>, Html<T>, tuples, Result)
 error.rs          Error enum → renders as the Resp envelope (Io/Json/Query/Param/…)
 body.rs           Body type + constructors (empty/full/json/from_stream)
 server.rs         hyper-util auto server (H1+H2), graceful shutdown, concurrency
+sse.rs            Server-Sent Events (Event builder + Sse response)
+ws.rs             WebSocket upgrade (feature = "ws", tokio-tungstenite)
 tls.rs            rustls config (feature = "tls")
 fs.rs             ServeDir/ServeFile (traversal-safe, ETag/304, index.html)
 test.rs           TestClient: in-memory requests through the real pipeline
@@ -78,6 +80,12 @@ state.rs          StateMap (App state) + TypeMap (per-request data)
 - A plain handler registered via `App::route` implies GET + HEAD. HEAD falls
   back to GET automatically; 405 responses flow through the global middleware
   chain (so CORS preflight works).
+- WebSocket: hyper parks `OnUpgrade` in request extensions; dispatch removes it
+  into `Context` before building. `Upgraded` speaks hyper's rt traits — bridge
+  to tungstenite with `TokioIo`. Tests need a real socket (see
+  `tests/websocket.rs`); TestClient cannot drive upgrades.
+- ServeDir supports single-range requests (206 + Content-Range, 416 on
+  unsatisfiable); malformed/multi ranges serve the full body (RFC-compliant).
 
 ## Common Patterns
 

@@ -153,11 +153,140 @@ async fn file_response(headers: &hyper::HeaderMap, path: &Path) -> Result<Respon
     .map_err(|_| Error::not_found("file"))?;
   let mime = MimeGuess::from_path(path).first_or_octet_stream();
 
+  // Range requests (single range only).
+  if let Some(range) = header_str(headers, hyper::header::RANGE) {
+    match parse_range(&range, meta.len()) {
+      ParsedRange::Valid(start, end) => {
+        return partial_response(
+          path,
+          start,
+          end,
+          meta.len(),
+          mime.as_ref(),
+          &etag,
+          &last_modified,
+        )
+        .await;
+      }
+      ParsedRange::Unsatisfiable => return Ok(range_unsatisfiable(meta.len(), mime.as_ref())),
+      ParsedRange::Ignore => {}
+    }
+  }
+
   let mut res = raw_response(StatusCode::OK, None, body::full(Bytes::from(bytes)));
   set(&mut res, hyper::header::CONTENT_TYPE, mime.as_ref());
   set(&mut res, ETAG, &etag);
   set(&mut res, LAST_MODIFIED, &last_modified);
+  set(&mut res, hyper::header::ACCEPT_RANGES, "bytes");
   Ok(res)
+}
+
+/// Outcome of parsing a `Range` header against a resource length.
+enum ParsedRange {
+  /// A single satisfiable range, inclusive bounds.
+  Valid(u64, u64),
+  /// Syntactically valid but outside the resource → 416.
+  Unsatisfiable,
+  /// Malformed or unsupported (multi-range) → ignore, serve 200.
+  Ignore,
+}
+
+fn parse_range(header: &str, len: u64) -> ParsedRange {
+  let Some(spec) = header.strip_prefix("bytes=") else {
+    return ParsedRange::Ignore;
+  };
+  if spec.contains(',') {
+    // Multi-range unsupported; serving the full body is RFC-compliant.
+    return ParsedRange::Ignore;
+  }
+  let Some((start_str, end_str)) = spec.trim().split_once('-') else {
+    return ParsedRange::Ignore;
+  };
+  if start_str.is_empty() {
+    // Suffix form: last N bytes.
+    let Ok(n) = end_str.trim().parse::<u64>() else {
+      return ParsedRange::Ignore;
+    };
+    if n == 0 || len == 0 {
+      return ParsedRange::Unsatisfiable;
+    }
+    let start = len.saturating_sub(n);
+    return ParsedRange::Valid(start, len - 1);
+  }
+  let Ok(start) = start_str.trim().parse::<u64>() else {
+    return ParsedRange::Ignore;
+  };
+  let end = if end_str.is_empty() {
+    len.saturating_sub(1)
+  } else {
+    match end_str.trim().parse::<u64>() {
+      Ok(end) => end.min(len.saturating_sub(1)),
+      Err(_) => return ParsedRange::Ignore,
+    }
+  };
+  if start >= len {
+    return ParsedRange::Unsatisfiable;
+  }
+  if end < start {
+    // RFC: last-byte-pos < first-byte-pos is syntactically invalid.
+    return ParsedRange::Ignore;
+  }
+  ParsedRange::Valid(start, end)
+}
+
+/// Serve a byte range with `seek` + bounded read — only the requested
+/// slice is read from disk.
+async fn partial_response(
+  path: &Path,
+  start: u64,
+  end: u64,
+  total: u64,
+  mime: &str,
+  etag: &str,
+  last_modified: &str,
+) -> Result<Response> {
+  use tokio::io::{AsyncReadExt as _, AsyncSeekExt as _};
+
+  let mut file = tokio::fs::File::open(path)
+    .await
+    .map_err(|_| Error::not_found("file"))?;
+  file
+    .seek(std::io::SeekFrom::Start(start))
+    .await
+    .map_err(Error::internal)?;
+  let length = end - start + 1;
+  let mut buf = Vec::with_capacity(length as usize);
+  file
+    .take(length)
+    .read_to_end(&mut buf)
+    .await
+    .map_err(Error::internal)?;
+
+  let mut res = raw_response(
+    StatusCode::PARTIAL_CONTENT,
+    None,
+    body::full(Bytes::from(buf)),
+  );
+  set(&mut res, hyper::header::CONTENT_TYPE, mime);
+  set(
+    &mut res,
+    hyper::header::CONTENT_RANGE,
+    &format!("bytes {start}-{end}/{total}"),
+  );
+  set(&mut res, ETAG, etag);
+  set(&mut res, LAST_MODIFIED, last_modified);
+  set(&mut res, hyper::header::ACCEPT_RANGES, "bytes");
+  Ok(res)
+}
+
+fn range_unsatisfiable(total: u64, mime: &str) -> Response {
+  let mut res = raw_response(StatusCode::RANGE_NOT_SATISFIABLE, Some(mime), body::empty());
+  set(
+    &mut res,
+    hyper::header::CONTENT_RANGE,
+    &format!("bytes */{total}"),
+  );
+  res
 }
 
 fn not_modified(etag: &str, last_modified: &str) -> Response {

@@ -495,3 +495,17 @@ features:`tls`(rustls 0.23 / tokio-rustls / rustls-pemfile)。
   (`body_bytes` 之外 v1 不提供流式读取 API,留 v1.1)
 - cookie 手工传递:Set-Cookie 便捷 builder 暂缺,经 `Response` headers 设置(cookie crate
   的 `Cookie` 格式化可用),完整的 CookieJar 管理留 v1.1
+
+---
+
+## 18. v1.1 追加实现(发布 0.1.0 之后)
+
+1. **SSE**(`src/sse.rs`):`Event` builder(event/data/id/retry/comment/json_data,
+   多行 data 重复 data 字段)+ `Sse<S>` 响应(text/event-stream + no-cache)
+2. **Range 请求**(`src/fs.rs`):单区间 `bytes=a-b|a-|-n` → 206 + Content-Range,
+   seek + take 有界读取;不可满足 → 416(`bytes */total`);多区间/畸形 → 忽略
+   返回 200(RFC 合规);200 响应携带 `Accept-Ranges: bytes`
+3. **WebSocket**(feature `ws`,tokio-tungstenite):`ctx.websocket()` 校验握手头
+   → `WebSocketUpgrade::on_upgrade(cb)` 构建 101(handshake derive accept key)并
+   spawn 回调;hyper `OnUpgrade` 从请求 extensions 摘取后经 Context 传递,
+   `Upgraded` 经 `TokioIo` 桥接 tungstenite;真实 socket 回显测试覆盖
