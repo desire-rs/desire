@@ -464,7 +464,29 @@ features:`tls`(rustls 0.23 / tokio-rustls / rustls-pemfile)。
 
 ---
 
-## 16. 风险与已知取舍
+## 16. 实现修正记录(2026-09-17 实现完成后回写)
+
+实现过程中相对本规格的修正与补充(均为实现细节层面,核心架构不变):
+
+1. **Next 为 owned 类型**(无 `Next<'a>` 生命周期参数):中间件链全部 Arc 持有,
+   future 均为 `'static`,与 owned Context 决策一致
+2. **Handler 要求 `Clone`**:erasure 采用「`fn call(&self)` + blanket impl 内部
+   clone + 存储 `Arc<dyn Fn(Context) -> BoxFuture>`」方案,免 proc-macro
+3. **`Error` 增加 `Io(#[from] std::io::Error)` 变体**(映射为脱敏 500);
+   `Error::Param` 的 source 以 `String` 存储(规避 rustc HRTB 限制)
+4. **body 限流使用自研 `Bounded` 包装**(固定错误类型),不用 `http_body_util::Limited`
+   —— 后者的 `B::Error: Into<Box<dyn Error>>` 约束在 handler future 内触发
+   rustc "implementation of From is not general enough"
+5. **Body 类型为 `UnsyncBoxBody<Bytes, Error>`**(Send 即可,Sync 非必需)
+6. **405 响应改为流经全局中间件链**(终端 handler 渲染 405 + Allow),
+   保证 CORS 预检在未注册 OPTIONS 的路由上也能工作
+7. **`Resp::ok(())` 渲染 `data: null`**(Rust 单元类型序列化的自然结果),
+   需要完全省略 data 字段时直接构造结构体
+8. 依赖新增 `futures-core`(Stream trait 定义,零依赖)、`httpdate`(HTTP 日期解析)
+9. prelude 额外导出 `Bytes`、`TestClient`;闭包 handler 返回 `Result` 时需标注
+   错误类型 `Ok::<_, Error>(...)`(Rust 类型推断固有行为,文档已注明)
+
+## 17. 风险与已知取舍
 
 - **owned Context 的取舍**:中间件后置阶段拿不到 ctx(只有响应);handler 需要读 body
   之外的内部可变场景极罕见。换来零宏、零 async-trait、纯 async fn 注册 —— 值得

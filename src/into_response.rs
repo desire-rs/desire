@@ -1,134 +1,181 @@
-use crate::{Error, Response, Result};
-use bytes::{Bytes, BytesMut};
-use http_body_util::Full;
-use hyper::header;
+//! `IntoResponse` — anything a handler can return.
+
 use std::borrow::Cow;
+
+use bytes::Bytes;
+use hyper::StatusCode;
+use serde::Serialize;
+
+use crate::body;
+use crate::response::{APPLICATION_JSON, TEXT_HTML, TEXT_PLAIN, raw_response, with_content_type};
+use crate::{Error, Resp, Response};
+
+/// Conversion into an HTTP [`Response`]. This is what handlers return:
+/// `Resp<T>`, strings, bytes, JSON values, tuples of status + body, and
+/// `Result<T, E>` where `E: Into<Error>` all implement it.
+///
+/// The conversion is infallible — errors are themselves rendered into
+/// the unified envelope.
 pub trait IntoResponse {
-  fn into_response(self) -> Result;
+  /// Convert into an HTTP response.
+  fn into_response(self) -> Response;
 }
 
-impl IntoResponse for Full<Bytes> {
-  fn into_response(self) -> Result {
-    let response = hyper::http::Response::builder().body(self)?.into();
-    Ok(response)
+impl IntoResponse for Response {
+  fn into_response(self) -> Response {
+    self
   }
 }
 
-impl IntoResponse for &'static str {
-  fn into_response(self) -> Result {
-    Cow::Borrowed(self).into_response()
-  }
-}
-
-impl IntoResponse for String {
-  fn into_response(self) -> Result {
-    Cow::<'static, str>::Owned(self).into_response()
-  }
-}
-
-impl IntoResponse for Cow<'static, str> {
-  fn into_response(self) -> Result {
-    let mut res = Full::from(self).into_response()?;
-    res.inner.headers_mut().insert(
-      header::CONTENT_TYPE,
-      header::HeaderValue::from_static(mime::TEXT_PLAIN_UTF_8.as_ref()),
-    );
-    Ok(res)
-  }
-}
-
-impl<T, E> IntoResponse for std::result::Result<T, E>
-where
-  T: IntoResponse,
-  E: IntoResponse,
-{
-  fn into_response(self) -> Result {
-    match self {
-      Ok(response) => response.into_response(),
-      Err(err) => err.into_response(),
-    }
+impl IntoResponse for crate::Body {
+  fn into_response(self) -> Response {
+    raw_response(StatusCode::OK, None, self)
   }
 }
 
 impl IntoResponse for Error {
-  fn into_response(self) -> Result {
-    let val = self.to_string();
-    Response::with_status(500, val)
+  fn into_response(self) -> Response {
+    self.to_resp().into_response()
+  }
+}
+
+impl<T, E> IntoResponse for Result<T, E>
+where
+  T: IntoResponse,
+  E: Into<Error>,
+{
+  fn into_response(self) -> Response {
+    match self {
+      Ok(resp) => resp.into_response(),
+      Err(err) => err.into().into_response(),
+    }
   }
 }
 
 impl IntoResponse for () {
-  fn into_response(self) -> Result {
-    let response = hyper::http::Response::builder()
-      .body(Full::new(Bytes::default()))?
-      .into();
-    Ok(response)
+  fn into_response(self) -> Response {
+    raw_response(StatusCode::OK, None, body::empty())
   }
 }
 
-impl IntoResponse for Response {
-  fn into_response(self) -> Result {
-    Ok(self)
+impl IntoResponse for StatusCode {
+  fn into_response(self) -> Response {
+    raw_response(self, None, body::empty())
   }
 }
 
-impl IntoResponse for (hyper::StatusCode, String) {
-  fn into_response(self) -> Result {
-    let response = hyper::http::Response::builder()
-      .header(header::CONTENT_TYPE, mime::TEXT_PLAIN_UTF_8.to_string())
-      .status(self.0)
-      .body(Full::new(Bytes::from(self.1)))?
-      .into();
-    Ok(response)
+impl IntoResponse for &'static str {
+  fn into_response(self) -> Response {
+    raw_response(
+      StatusCode::OK,
+      Some(TEXT_PLAIN),
+      body::full(Bytes::from_static(self.as_bytes())),
+    )
   }
 }
 
-impl IntoResponse for (hyper::StatusCode, &'static str) {
-  fn into_response(self) -> Result {
-    let response = hyper::http::Response::builder()
-      .header(header::CONTENT_TYPE, mime::TEXT_PLAIN_UTF_8.to_string())
-      .status(self.0)
-      .body(Full::new(Bytes::from(self.1)))?
-      .into();
-    Ok(response)
+impl IntoResponse for String {
+  fn into_response(self) -> Response {
+    Response::text(self)
   }
 }
 
-impl IntoResponse for (u16, String) {
-  fn into_response(self) -> Result {
-    let response = hyper::http::Response::builder()
-      .header(header::CONTENT_TYPE, mime::TEXT_PLAIN_UTF_8.to_string())
-      .status(hyper::StatusCode::from_u16(self.0)?)
-      .body(Full::new(Bytes::from(self.1)))?
-      .into();
-    Ok(response)
-  }
-}
-
-impl IntoResponse for (u16, &'static str) {
-  fn into_response(self) -> Result {
-    let response = hyper::http::Response::builder()
-      .header(header::CONTENT_TYPE, mime::TEXT_PLAIN_UTF_8.to_string())
-      .status(hyper::StatusCode::from_u16(self.0)?)
-      .body(Full::new(Bytes::from(self.1)))?
-      .into();
-    Ok(response)
+impl IntoResponse for Cow<'static, str> {
+  fn into_response(self) -> Response {
+    match self {
+      Cow::Borrowed(s) => s.into_response(),
+      Cow::Owned(s) => s.into_response(),
+    }
   }
 }
 
 impl IntoResponse for Bytes {
-  fn into_response(self) -> Result {
-    let mut res = Full::from(self).into_response()?;
-    res.inner.headers_mut().insert(
-      header::CONTENT_TYPE,
-      header::HeaderValue::from_static(mime::APPLICATION_OCTET_STREAM.as_ref()),
-    );
-    Ok(res)
+  fn into_response(self) -> Response {
+    Response::bytes(self)
   }
 }
 
-impl IntoResponse for BytesMut {
-  fn into_response(self) -> Result {
-    self.freeze().into_response()
+impl IntoResponse for Vec<u8> {
+  fn into_response(self) -> Response {
+    Response::bytes(self)
+  }
+}
+
+impl IntoResponse for &'static [u8] {
+  fn into_response(self) -> Response {
+    Response::bytes(Bytes::from_static(self))
+  }
+}
+
+impl IntoResponse for serde_json::Value {
+  fn into_response(self) -> Response {
+    let mut res = Response::json(&self);
+    with_content_type(&mut res, APPLICATION_JSON);
+    res
+  }
+}
+
+/// A JSON response outside the envelope: `Json(user)` serializes `user`
+/// directly, for APIs that do not use the `Resp` convention.
+#[derive(Debug, Clone)]
+pub struct Json<T>(pub T);
+
+impl<T> IntoResponse for Json<T>
+where
+  T: Serialize,
+{
+  fn into_response(self) -> Response {
+    let mut res = Response::json(&self.0);
+    with_content_type(&mut res, APPLICATION_JSON);
+    res
+  }
+}
+
+/// An HTML response: `Html("<h1>hi</h1>")`.
+#[derive(Debug, Clone)]
+pub struct Html<T>(pub T);
+
+impl<T> IntoResponse for Html<T>
+where
+  T: Into<Cow<'static, str>>,
+{
+  fn into_response(self) -> Response {
+    let mut res = Response::html(self.0.into());
+    with_content_type(&mut res, TEXT_HTML);
+    res
+  }
+}
+
+impl<T> IntoResponse for Resp<T>
+where
+  T: Serialize,
+{
+  fn into_response(self) -> Response {
+    let status = self.status();
+    let body = body::json(&self);
+    raw_response(status, Some(APPLICATION_JSON), body)
+  }
+}
+
+impl<T> IntoResponse for (StatusCode, T)
+where
+  T: IntoResponse,
+{
+  fn into_response(self) -> Response {
+    let mut res = self.1.into_response();
+    *res.status_mut() = self.0;
+    res
+  }
+}
+
+impl<T> IntoResponse for (u16, T)
+where
+  T: IntoResponse,
+{
+  fn into_response(self) -> Response {
+    match StatusCode::from_u16(self.0) {
+      Ok(status) => (status, self.1).into_response(),
+      Err(e) => Error::internal(e).into_response(),
+    }
   }
 }
