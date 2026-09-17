@@ -117,7 +117,7 @@ let app = App::new().nest("/api", api).merge(health_router());
 | Middleware | built-in `logger()`, `cors(CorsConfig)`, `timeout(d)`, `body_limit(n)`; group-level via `Router::with` |
 | Errors | `Error::unauthorized()`, `Error::business(code, msg)`, `Error::internal(...)` (sanitized + logged), custom `From` impls |
 | Server | H1+H2 auto, `tls` feature (rustls + ALPN), graceful shutdown, concurrency limit, 2 MiB default body cap |
-| Static files | `ServeDir` / `ServeFile` with traversal protection, ETag/304, `index.html`, single-range requests (206/416) |
+| Static files | `ServeDir` / `ServeFile` with traversal protection, ETag/304, `index.html`, single-range requests (206/416), SPA `fallback_file`, dotfile guard |
 | Forms & files | `ctx.form_data()` parses `multipart/form-data` (fields + buffered files); `ctx.body_stream()` for unbuffered uploads |
 | Cookies | `ctx.cookie(name)` to read; `ctx.set_cookie(...)` queues `Set-Cookie` on the response |
 | Realtime | `sse::Event` / `Sse` server-sent events; `ws` feature for WebSocket (`ctx.websocket()`) |
@@ -130,7 +130,8 @@ let app = App::new().nest("/api", api).merge(health_router());
 - [`hello`](examples/hello.rs) — the smallest app
 - [`json_api`](examples/json_api.rs) — CRUD with state and the envelope
 - [`middleware`](examples/middleware.rs) — custom + built-in middleware
-- [`static_files`](examples/static_files.rs) — serving a directory
+- [`static_files`](examples/static_files.rs) — serving a directory (SPA fallback included)
+- [`demo`](examples/demo.rs) — interactive browser showcase: SSE + WebSocket + upload (requires `--features ws`)
 - [`sse`](examples/sse.rs) — server-sent events
 - [`ws`](examples/ws.rs) — WebSocket echo (requires `--features ws`)
 - [`openapi`](examples/openapi.rs) — OpenAPI + Swagger UI (requires `--features openapi`)

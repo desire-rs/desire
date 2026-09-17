@@ -28,6 +28,7 @@ pub struct ServeDir {
   root: PathBuf,
   cache_control: Option<String>,
   allow_dotfiles: bool,
+  fallback_file: Option<PathBuf>,
 }
 
 impl ServeDir {
@@ -37,7 +38,16 @@ impl ServeDir {
       root: root.into(),
       cache_control: None,
       allow_dotfiles: false,
+      fallback_file: None,
     }
+  }
+
+  /// Serve this file when the requested path does not exist — the
+  /// single-page-app pattern (`fallback_file("index.html")` lets the
+  /// client router take over unknown paths). The response is 200.
+  pub fn fallback_file(mut self, path: impl Into<PathBuf>) -> Self {
+    self.fallback_file = Some(path.into());
+    self
   }
 
   /// Emit a `Cache-Control` header on successful responses.
@@ -59,6 +69,7 @@ impl Handler<()> for ServeDir {
     let root = self.root.clone();
     let cache_control = self.cache_control.clone();
     let allow_dotfiles = self.allow_dotfiles;
+    let fallback_file = self.fallback_file.clone();
     Box::pin(async move {
       // Wildcard routes carry `{*path}`; a route registered on the bare
       // prefix has no param and serves the root (i.e. index.html).
@@ -78,9 +89,20 @@ impl Handler<()> for ServeDir {
       } else {
         root.join(&decoded)
       };
-      let canonical = tokio::fs::canonicalize(&target)
-        .await
-        .map_err(|_| Error::not_found("file"))?;
+      let canonical = match tokio::fs::canonicalize(&target).await {
+        Ok(canonical) => canonical,
+        Err(_) => match &fallback_file {
+          // SPA mode: unknown paths hand off to the client router.
+          Some(fallback) => {
+            let mut served = file_response(ctx.headers(), fallback).await?;
+            if let Some(cc) = &cache_control {
+              set(&mut served, hyper::header::CACHE_CONTROL, cc);
+            }
+            return Ok(served);
+          }
+          None => return Err(Error::not_found("file")),
+        },
+      };
       let canonical_root = tokio::fs::canonicalize(&root)
         .await
         .map_err(Error::internal)?;

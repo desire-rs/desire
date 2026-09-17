@@ -87,6 +87,9 @@ state.rs          StateMap (App state) + TypeMap (per-request data)
   `tests/websocket.rs`); TestClient cannot drive upgrades.
 - ServeDir supports single-range requests (206 + Content-Range, 416 on
   unsatisfiable); malformed/multi ranges serve the full body (RFC-compliant).
+- `ServeDir::fallback_file(p)` serves `p` (HTTP 200) when the requested path
+  does not exist — the SPA pattern. Paths that exist but fail later checks
+  (directory without index) still 404.
 - `ctx.set_cookie` queues into a per-request jar (`Arc<Mutex<Vec>>`); dispatch
   drains it onto the response after the handler — that indirection exists
   because handlers only hold `&Context` while the response is built later.

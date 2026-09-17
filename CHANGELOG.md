@@ -4,6 +4,17 @@ All notable changes to desire are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/); versions follow
 [SemVer](https://semver.org) (0.x: breaking changes ship as minor bumps).
 
+## [0.4.0] - 2026-09-17
+
+### Added
+
+- `examples/demo.rs`: an interactive browser showcase — live SSE ticks,
+  WebSocket echo, multipart upload, and the response envelope in one page
+  (verified end-to-end in a real browser).
+- `ServeDir::fallback_file("index.html")`: single-page-app mode — unknown
+  paths serve the fallback file with 200 so the client router takes over.
+- `docs/1.0-plan.md`: the roadmap and API-stability checklist for 1.0.
+
 ## [0.3.0] - 2026-09-17
 
 ### Added
