@@ -151,6 +151,13 @@ async fn get_user_ok() {
 }
 ```
 
+## Performance
+
+Dispatch-layer allocations per request are measured with a counting
+allocator and tracked across releases: **−20% since 1.0.0-rc.1**, with the
+methodology, sampling profiles, and rejected ideas documented in
+[docs/performance-notes.md](docs/performance-notes.md).
+
 ## Articles
 
 中文介绍与教程见 [docs/articles](docs/articles/README.md):发布推广文、十分钟上手教程、设计哲学与取舍。

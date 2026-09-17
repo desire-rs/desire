@@ -65,13 +65,23 @@ desire 的 handler 是纯 Rust:`async fn(ctx: Context) -> impl IntoResponse` 直
 
 后来又撞上第二个墙:为了支持请求体大小限制,我用了 `http_body_util::Limited`,它的泛型约束 `B::Error: Into<Box<dyn Error>>` 在 handler future 里触发了 rustc "implementation of From is not general enough" 的已知限制。解法是自己写了 30 行固定错误类型的 body 包装器。这类坑不值得每个用户再踩一遍,所以它们被写进了仓库的 AGENTS.md,给未来的人类和 AI 协作者。
 
+## 第四个故事:性能,测量先于优化
+
+1.0 冻结前做性能审查,我们给自己立了两条规矩:**先测量,再动手;吞吐之外,看分配**。
+
+第一轮,给基准程序挂上一个计数分配器(自定义 `GlobalAlloc`,约 30 行),对派发层做 A/B:中间件链从每请求重建改为启动期烘焙,路径参数匹配不再复制路径字符串 —— **每请求堆分配 38.4 → 35.4 次,精确减 3.0,与理论逐项吻合**。
+
+第二轮,macOS `sample` 采样让数据指出下一个方向:内核等待占绝对大头(健康),用户态热点是路径参数 `HashMap` 的建表 + SipHash 哈希 —— 而路由参数通常只有 0~2 个。换成小型关联列表(线性扫描),**累计 38.4 → 30.6 次,−20%**,零 API 变化。
+
+最有价值的发现是那个诚实的结论:吞吐基准上这些优化**不可见**(±5% 噪声淹没)—— 小请求的成本由 serde_json 序列化和 hyper 协议层主导。我们没有粉饰这一点,而是写进了 [performance-notes.md](https://github.com/desire-rs/desire/blob/main/docs/performance-notes.md):分配的收益是架构性的(成本不随中间件数量增长),吞吐要提升就该去动业务代码和序列化,而不是框架派发。**知道哪里不用优化,和知道哪里要优化,是同一门手艺。**
+
 ## 我们刻意不做的
 
 一个框架的边界和它的功能同样重要:
 
 - **不兼容 Tower**。Tower `Service` 是优秀的抽象,但它的 `poll_ready`/泛型服务心智模型正是"学习曲线"的主要来源。desire 的中间件是 `async fn(ctx, next)`,简单,但不和 Tower 生态互通。
 - **不做 extractor 宏**。所有提取都是显式调用,没有 attribute 魔法。
-- **不追 TechEmpower 榜单**。底层是 hyper,天花板和 axum 相同;但 desire 的优化优先级是"人类编译代码的速度",不是"机器处理请求的速度"。
+- **不追 TechEmpower 榜单**。底层是 hyper,天花板和 axum 相同;desire 的优化优先级是"人类编译代码的速度",不是"机器处理请求的速度"——但优先级低不等于不做,见下面的第四个故事。
 
 ## 什么时候请继续用 axum
 
@@ -85,8 +95,9 @@ desire 的目标用户是:做前后端分离 API 服务、重视统一错误约�
 
 ## 现状
 
-- 0.2.0 已发布到 [crates.io](https://crates.io/crates/desire),基于 hyper 1.x + edition 2024,MSRV 1.85;
-- 功能覆盖:路由、中间件、SSE、WebSocket、multipart、cookie、gzip、静态文件(防穿越 + Range)、OpenAPI + Swagger UI、内存测试客户端;
-- 58 个测试,clippy/fmt/doc 零警告,CI 覆盖 MSRV。
+- **1.0.0-rc.3** 已发布到 [crates.io](https://crates.io/crates/desire),公共 API 已冻结:1.0 起破坏性变更只走 2.0,MSRV 跟随 stable − 2,策略写在 README;
+- 功能覆盖:路由(nest/merge/405/fallback)、中间件(内置 logger/cors/timeout/body_limit/gzip)、SSE(带 keep-alive)、WebSocket、multipart、cookie、流式请求体、静态文件(防穿越 + 对抗路径电池测试 + Range + SPA fallback)、OpenAPI + Swagger UI、内存测试客户端;
+- 92 个测试,clippy/fmt/doc 零警告,CI 含 cargo audit,发版全自动(打标签即发布);
+- 性能:派发层每请求堆分配 −20%(计数分配器度量,方法与数据公开)。
 
-0.x 阶段,API 还会演进,但六个核心概念(App、Context、Handler、Middleware/Next、Router/MethodRouter、Resp)已经稳定。欢迎来 [GitHub](https://github.com/desire-rs/desire) 看看,或者直接 `cargo add desire` 感受一下——喜欢的话,一个 Star 就是最好的反馈。
+冻结期的承诺很具体:四周无事故即发 1.0.0 正式版。欢迎来 [GitHub](https://github.com/desire-rs/desire) 看看,或者直接 `cargo add desire` 感受一下——喜欢的话,一个 Star 就是最好的反馈。

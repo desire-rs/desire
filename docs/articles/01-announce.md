@@ -6,7 +6,7 @@
 
 Rust 写 Web 服务,性能从来不是问题,写起来的体验才是。axum 很优秀,但 extractor 元组、Tower 概念、类型报错这些门槛,劝退过不少人。
 
-[desire](https://github.com/desire-rs/desire) 是一个基于 hyper 1.x 的新框架,整个框架只有 **6 个核心概念**,押注一个方向:**写起来的体验和诊断能力**。0.2.0 已发布到 crates.io,本文带你 3 分钟看完它长什么样。
+[desire](https://github.com/desire-rs/desire) 是一个基于 hyper 1.x 的新框架,整个框架只有 **6 个核心概念**,押注一个方向:**写起来的体验和诊断能力**。1.0.0-rc.3 已发布到 crates.io,公共 API 已冻结,本文带你 3 分钟看完它长什么样。
 
 ## Hello, 10 行
 
@@ -107,6 +107,9 @@ rustls 实现,ALPN 自动协商 h2。
 - **实时**:SSE 一等支持(`Event::new().data(..)`);WebSocket `ctx.websocket()?.on_upgrade(...)`
 - **Cookie**:`ctx.cookie()` 读,`ctx.set_cookie()` 写
 - **OpenAPI**:builder 声明 + schemars 推导,自动挂 `/openapi.json` 和 Swagger UI `/docs`
+- **SPA 托管**:`ServeDir::fallback_file("index.html")`,未知路径交给前端路由
+- **大文件**:`ctx.body_stream()` 流式读取请求体,不强制缓冲
+- **想看活的?** `cargo run --example demo --features ws`,一个页面跑通 SSE + WebSocket + 上传
 
 ## 不起 socket 的测试
 
@@ -122,9 +125,11 @@ async fn get_user_ok() {
 
 走的是真实的中间件 + 路由 + handler 管线,毫秒级出结果。WebSocket 这种必须真连接的除外,其余全部不用起端口。
 
-## 诚实的定位
+## 性能:用数据说话,不用截图
 
-desire 基于和 axum 相同的 hyper 1.x,性能天花板一致,但我们没有跑分截图可秀 —— 这个项目的赌注是**框架的使用体验本身就是产品**:更少的概念、更精确的诊断、约定俗成的响应格式。
+desire 基于 hyper 1.x,和 axum 同一地基。性能工作我们不发跑分截图,发**可复现的测量**:派发层用计数分配器做了 A/B 度量 —— 每请求堆分配从 38.4 次降到 30.6 次(−20%),零 API 变化;采样分析证明小请求瓶颈在 serde_json 与 hyper,不在派发层,所以优化做对了地方就收手。方法、数据、取舍全部公开在 [performance-notes.md](https://github.com/desire-rs/desire/blob/main/docs/performance-notes.md)。
+
+对用户很实际:desire 派发层的成本是常数,且**不随中间件数量增长**(中间件链在启动期烘焙);吞吐受制于你的业务代码和 JSON 序列化 —— 和 axum 同一量级。
 
 如果你要 Tower 生态的中间件全家桶、极致的 extractor 抽象复用,请继续用 axum,它依然是默认的正确选择。如果你在做前后端分离的 API 服务,受够了样板代码和模糊的报错,欢迎试试 desire。
 
@@ -132,4 +137,4 @@ desire 基于和 axum 相同的 hyper 1.x,性能天花板一致,但我们没有�
 - 文档:[docs.rs/desire](https://docs.rs/desire)
 - 安装:`cargo add desire`
 
-0.x 阶段,API 仍可能演进,欢迎提 issue 聊设计。
+当前是 1.0 release-candidate:公共 API 已冻结(SemVer 与 MSRV 策略见仓库 README),四周无事故即发 1.0.0 正式版。设计讨论依然欢迎,提 issue 即可。

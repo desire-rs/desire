@@ -235,4 +235,4 @@ CMD ["user-api"]
 | 接口文档 | `PathDoc` builder → Swagger UI |
 | 测试 | `TestClient`,毫秒级 |
 
-仓库里有 9 个可运行的例子:[github.com/desire-rs/desire/tree/main/examples](https://github.com/desire-rs/desire/tree/main/examples)。有问题欢迎提 issue。
+仓库里有 10 个可运行的例子(含一个浏览器实时 demo):[github.com/desire-rs/desire/tree/main/examples](https://github.com/desire-rs/desire/tree/main/examples)。框架自身的性能数据(派发层每请求堆分配 −20%,含测量方法)公开在 [performance-notes.md](https://github.com/desire-rs/desire/blob/main/docs/performance-notes.md)。有问题欢迎提 issue。
