@@ -636,6 +636,27 @@ async fn multipart_wrong_content_type_is_400() {
   res.assert_status(StatusCode::BAD_REQUEST);
 }
 
+// ---- response cookie helper ----
+
+#[tokio::test]
+async fn middleware_can_add_cookie_to_response() {
+  async fn track(ctx: Context, next: Next) -> Result {
+    let mut res = next.run(ctx).await?;
+    res.add_cookie(desire::cookie::Cookie::build(("track", "yes")).build());
+    Ok(res)
+  }
+
+  async fn handler(_ctx: Context) -> Resp<()> {
+    Resp::ok(())
+  }
+
+  let app = App::new().with(track).route("/", get(handler));
+  let tc = TestClient::new(app);
+  let res = tc.get("/").send().await;
+  res.assert_status_ok();
+  assert_eq!(res.header("set-cookie"), Some("track=yes"));
+}
+
 // ---- streaming request body ----
 
 #[tokio::test]

@@ -29,6 +29,7 @@ pub struct ServeDir {
   cache_control: Option<String>,
   allow_dotfiles: bool,
   fallback_file: Option<PathBuf>,
+  files_listing: bool,
 }
 
 impl ServeDir {
@@ -39,7 +40,15 @@ impl ServeDir {
       cache_control: None,
       allow_dotfiles: false,
       fallback_file: None,
+      files_listing: false,
     }
+  }
+
+  /// Render an HTML listing when a directory has no `index.html`
+  /// (instead of a 404). File names are HTML-escaped.
+  pub fn files_listing(mut self) -> Self {
+    self.files_listing = true;
+    self
   }
 
   /// Serve this file when the requested path does not exist — the
@@ -70,6 +79,7 @@ impl Handler<()> for ServeDir {
     let cache_control = self.cache_control.clone();
     let allow_dotfiles = self.allow_dotfiles;
     let fallback_file = self.fallback_file.clone();
+    let files_listing = self.files_listing;
     Box::pin(async move {
       // Wildcard routes carry `{*path}`; a route registered on the bare
       // prefix has no param and serves the root (i.e. index.html).
@@ -110,12 +120,26 @@ impl Handler<()> for ServeDir {
         return Err(Error::not_found("file"));
       }
 
-      let target = if is_dir(&canonical).await {
-        canonical.join("index.html")
-      } else {
-        canonical
-      };
-      let mut res = file_response(ctx.headers(), &target).await?;
+      if is_dir(&canonical).await {
+        let index = tokio::fs::canonicalize(canonical.join("index.html")).await;
+        if let Ok(index) = index {
+          let mut res = file_response(ctx.headers(), &index).await?;
+          if let Some(cc) = &cache_control {
+            set(&mut res, hyper::header::CACHE_CONTROL, cc);
+          }
+          return Ok(res);
+        }
+        if files_listing {
+          let mut res = render_listing(ctx.path(), &canonical, allow_dotfiles).await?;
+          if let Some(cc) = &cache_control {
+            set(&mut res, hyper::header::CACHE_CONTROL, cc);
+          }
+          return Ok(res);
+        }
+        return Err(Error::not_found("file"));
+      }
+
+      let mut res = file_response(ctx.headers(), &canonical).await?;
       if let Some(cc) = &cache_control {
         set(&mut res, hyper::header::CACHE_CONTROL, cc);
       }
@@ -165,6 +189,47 @@ impl Handler<()> for ServeFile {
       Ok(res)
     })
   }
+}
+
+/// Render a minimal HTML directory listing. Names are escaped.
+async fn render_listing(request_path: &str, dir: &Path, allow_dotfiles: bool) -> Result<Response> {
+  let mut rows = Vec::new();
+  let mut reader = tokio::fs::read_dir(dir).await.map_err(Error::internal)?;
+  while let Some(entry) = reader.next_entry().await.map_err(Error::internal)? {
+    let name = entry.file_name().to_string_lossy().into_owned();
+    if !allow_dotfiles && name.starts_with('.') {
+      continue;
+    }
+    let kind = if entry.file_type().await.map(|t| t.is_dir()).unwrap_or(false) {
+      "dir"
+    } else {
+      "file"
+    };
+    rows.push((name, kind));
+  }
+  rows.sort();
+  let rows: String = rows
+    .iter()
+    .map(|(name, kind)| format!("<tr><td>{}</td><td>{}</td></tr>", html_escape(name), kind))
+    .collect();
+  let html = format!(
+    "<!DOCTYPE html><html><head><meta charset=\"utf-8\"><title>Index of {}</title>\
+     <style>body{{font:14px ui-monospace,monospace;margin:40px auto;max-width:640px}}\
+     td{{padding:2px 12px 2px 0}}table{{border-collapse:collapse}}</style></head>\
+     <body><h3>Index of {}</h3><table>{}</table></body></html>",
+    html_escape(request_path),
+    html_escape(request_path),
+    rows
+  );
+  Ok(Response::html(html))
+}
+
+fn html_escape(s: &str) -> String {
+  s.replace('&', "&amp;")
+    .replace('<', "&lt;")
+    .replace('>', "&gt;")
+    .replace('"', "&quot;")
+    .replace('\'', "&#39;")
 }
 
 async fn is_dir(path: &Path) -> bool {

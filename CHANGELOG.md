@@ -4,6 +4,19 @@ All notable changes to desire are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/); versions follow
 [SemVer](https://semver.org) (0.x: breaking changes ship as minor bumps).
 
+## [0.5.0] - 2026-09-17
+
+### Added
+
+- `Response::add_cookie(...)`: set cookies in middleware after `next.run`.
+- `Sse::new(..).keep_alive(interval)`: `:keep-alive` comment frames while
+  the event stream is idle, so proxies and browsers keep the connection.
+- `ServeDir::files_listing()`: HTML directory listing when a directory has
+  no `index.html` — HTML-escaped names, dotfiles hidden unless
+  `allow_dotfiles()` is set, `index.html` still takes precedence.
+- CI: `cargo audit` job; Stability section in the README; `docs/1.0-plan.md`
+  audit progress.
+
 ## [0.4.0] - 2026-09-17
 
 ### Added

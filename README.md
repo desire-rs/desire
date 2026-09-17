@@ -155,6 +155,13 @@ async fn get_user_ok() {
 
 中文介绍与教程见 [docs/articles](docs/articles/README.md):发布推广文、十分钟上手教程、设计哲学与取舍。
 
+## Stability
+
+desire is pre-1.0: breaking changes ship as minor bumps (SemVer within 0.x).
+The path to the 1.0 API-stability commitment — frozen envelope, frozen
+extraction surface, exclusions — lives in
+[docs/1.0-plan.md](docs/1.0-plan.md).
+
 ## License
 
 Apache-2.0. See [LICENSE](LICENSE).

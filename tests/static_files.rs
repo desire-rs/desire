@@ -259,3 +259,70 @@ async fn cache_control_header_is_emitted() {
   std::fs::remove_dir_all(dir).ok();
   std::fs::remove_dir_all(dir2).ok();
 }
+
+#[tokio::test]
+async fn files_listing_renders_escaped_names() {
+  let dir = unique_dir("listing");
+  let assets = dir.join("assets");
+  std::fs::create_dir_all(assets.join("sub")).unwrap();
+  std::fs::write(assets.join("a.txt"), b"a").unwrap();
+  std::fs::write(assets.join("a&b<c>.txt"), b"tricky").unwrap();
+  std::fs::write(assets.join(".hidden"), b"x").unwrap();
+
+  let app = App::new()
+    .route("/static", ServeDir::new(assets.clone()).files_listing())
+    .route("/static/{*path}", ServeDir::new(assets).files_listing());
+  let tc = TestClient::new(app);
+
+  let res = tc.get("/static").send().await;
+  res.assert_status_ok();
+  let html = res.text();
+  assert!(html.contains("a.txt"));
+  assert!(
+    html.contains("a&amp;b&lt;c&gt;.txt"),
+    "escaped name expected: {html}"
+  );
+  assert!(!html.contains(".hidden"), "dotfiles hidden from listing");
+  assert!(
+    html.contains("<td>dir</td>"),
+    "subdir marked as dir: {html}"
+  );
+
+  // dotfile request still rejected even with listing on
+  let res = tc.get("/static/.hidden").send().await;
+  res.assert_status(StatusCode::NOT_FOUND);
+
+  std::fs::remove_dir_all(dir).ok();
+}
+
+#[tokio::test]
+async fn index_html_wins_over_listing() {
+  let dir = unique_dir("listing-index");
+  let assets = dir.join("assets");
+  std::fs::create_dir_all(&assets).unwrap();
+  std::fs::write(assets.join("index.html"), b"<h1>index</h1>").unwrap();
+  std::fs::write(assets.join("b.txt"), b"b").unwrap();
+
+  let app = App::new().route("/static", ServeDir::new(assets).files_listing());
+  let tc = TestClient::new(app);
+  let res = tc.get("/static").send().await;
+  res.assert_status_ok();
+  assert_eq!(res.text(), "<h1>index</h1>");
+
+  std::fs::remove_dir_all(dir).ok();
+}
+
+#[tokio::test]
+async fn listing_disabled_defaults_to_404() {
+  let dir = unique_dir("listing-off");
+  let assets = dir.join("assets");
+  std::fs::create_dir_all(&assets).unwrap();
+  std::fs::write(assets.join("c.txt"), b"c").unwrap();
+
+  let app = App::new().route("/static", ServeDir::new(assets));
+  let tc = TestClient::new(app);
+  let res = tc.get("/static").send().await;
+  res.assert_status(StatusCode::NOT_FOUND);
+
+  std::fs::remove_dir_all(dir).ok();
+}

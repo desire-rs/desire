@@ -29,3 +29,32 @@ async fn sse_streams_events_with_correct_headers() {
     "event:greet\ndata:hello\n\n:keep-alive\n\nid:2\ndata:{\"n\":1}\n\n"
   );
 }
+
+#[tokio::test]
+async fn keep_alive_emits_comments_while_idle() {
+  use std::time::Duration;
+
+  async fn slow(
+    _ctx: Context,
+  ) -> desire::sse::KeepAliveSse<impl Stream<Item = Result<Event, Error>>> {
+    // one real event after 1s; the stream then ends — keep-alive
+    // comments fill the silent window
+    let stream = futures_util::stream::once(async move {
+      tokio::time::sleep(Duration::from_secs(1)).await;
+      Ok(Event::new().data("late"))
+    });
+    Sse::new(stream).keep_alive(Duration::from_millis(200))
+  }
+
+  let app = App::new().route("/slow", get(slow));
+  let tc = TestClient::new(app);
+  let res = tc.get("/slow").send().await;
+  res.assert_status_ok();
+  let text = res.text();
+  assert!(text.contains("data:late"), "real event must arrive: {text}");
+  let keep_alives = text.matches(":keep-alive").count();
+  assert!(
+    keep_alives >= 3,
+    "expected several keep-alive comments, got {keep_alives} in: {text}"
+  );
+}

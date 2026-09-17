@@ -14,11 +14,13 @@
 //! ```
 
 use std::fmt::Write as _;
+use std::pin::Pin;
 
 use futures_core::Stream;
 use http_body::Frame;
 use hyper::header::{CACHE_CONTROL, CONTENT_TYPE, HeaderValue};
 use serde_json::to_string;
+use tokio_stream::StreamExt as _;
 
 use crate::response::raw_response;
 use http_body_util::BodyExt;
@@ -134,6 +136,83 @@ impl<S> Sse<S> {
   pub fn new(stream: S) -> Self {
     Sse { stream }
   }
+
+  /// Emit a `:keep-alive` comment every `interval` while the event
+  /// stream is idle, so proxies and browsers do not time the
+  /// connection out.
+  ///
+  /// ```ignore
+  /// Sse::new(events).keep_alive(Duration::from_secs(15))
+  /// ```
+  pub fn keep_alive(self, interval: std::time::Duration) -> KeepAliveSse<S> {
+    KeepAliveSse {
+      events: self.stream,
+      interval,
+    }
+  }
+}
+
+/// The response type of [`Sse::keep_alive`].
+pub struct KeepAliveSse<S> {
+  events: S,
+  interval: std::time::Duration,
+}
+
+impl<S, E> IntoResponse for KeepAliveSse<S>
+where
+  S: Stream<Item = Result<Event, E>> + Send + 'static,
+  E: Into<Error>,
+{
+  fn into_response(self) -> Response {
+    let ticker = tokio_stream::wrappers::IntervalStream::new(tokio::time::interval(self.interval))
+      .map(|_| Ok(Event::new().comment("keep-alive")));
+
+    let body = http_body_util::StreamBody::new(KeepAliveMerge {
+      events: Box::pin(self.events),
+      ticker: Box::pin(ticker),
+    })
+    .boxed_unsync();
+    sse_response(body)
+  }
+}
+
+/// Interleaves the event stream with the keep-alive ticker. Events are
+/// preferred: if both are ready the event wins.
+struct KeepAliveMerge<S, T> {
+  events: Pin<Box<S>>,
+  ticker: Pin<Box<T>>,
+}
+
+impl<S, T, E> Stream for KeepAliveMerge<S, T>
+where
+  S: Stream<Item = Result<Event, E>>,
+  T: Stream<Item = Result<Event, Error>>,
+  E: Into<Error>,
+{
+  type Item = Result<Frame<bytes::Bytes>, Error>;
+
+  fn poll_next(
+    self: Pin<&mut Self>,
+    cx: &mut std::task::Context<'_>,
+  ) -> std::task::Poll<Option<Self::Item>> {
+    use std::task::Poll;
+    let this = self.get_mut();
+    match this.events.as_mut().poll_next(cx) {
+      Poll::Ready(Some(Ok(event))) => {
+        return Poll::Ready(Some(Ok(Frame::data(bytes::Bytes::from(event.render())))));
+      }
+      Poll::Ready(Some(Err(e))) => return Poll::Ready(Some(Err(e.into()))),
+      Poll::Ready(None) => return Poll::Ready(None),
+      Poll::Pending => {}
+    }
+    match this.ticker.as_mut().poll_next(cx) {
+      Poll::Ready(Some(Ok(event))) => {
+        Poll::Ready(Some(Ok(Frame::data(bytes::Bytes::from(event.render())))))
+      }
+      Poll::Ready(Some(Err(e))) => Poll::Ready(Some(Err(e))),
+      Poll::Ready(None) | Poll::Pending => Poll::Pending,
+    }
+  }
 }
 
 impl<S, E> IntoResponse for Sse<S>
@@ -146,12 +225,17 @@ where
       inner: Box::pin(self.stream),
     })
     .boxed_unsync();
-    let mut res = raw_response(StatusCode::OK, Some("text/event-stream"), body);
-    let headers = res.headers_mut();
-    headers.insert(CONTENT_TYPE, HeaderValue::from_static("text/event-stream"));
-    headers.insert(CACHE_CONTROL, HeaderValue::from_static("no-cache"));
-    res
+    sse_response(body)
   }
+}
+
+/// Shared response assembly for `Sse` and `KeepAliveSse`.
+fn sse_response(body: crate::Body) -> Response {
+  let mut res = raw_response(StatusCode::OK, Some("text/event-stream"), body);
+  let headers = res.headers_mut();
+  headers.insert(CONTENT_TYPE, HeaderValue::from_static("text/event-stream"));
+  headers.insert(CACHE_CONTROL, HeaderValue::from_static("no-cache"));
+  res
 }
 
 struct EventStream<S> {

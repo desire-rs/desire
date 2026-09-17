@@ -84,6 +84,15 @@ impl Response {
   }
 
   /// A redirect response to `location`.
+  /// Append a `Set-Cookie` header — the post-processing counterpart of
+  /// [`Context::set_cookie`](crate::Context::set_cookie), for use in
+  /// middleware after `next.run`.
+  pub fn add_cookie(&mut self, cookie: cookie::Cookie<'static>) {
+    if let Ok(value) = HeaderValue::from_str(&cookie.to_string()) {
+      self.headers_mut().append(hyper::header::SET_COOKIE, value);
+    }
+  }
+
   /// A redirect response to `location`.
   pub fn redirect(status: StatusCode, location: &str) -> Self {
     let mut res = raw_response(status, None, body::empty());
