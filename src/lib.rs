@@ -435,6 +435,8 @@ pub mod prelude {
   pub use crate::fs::{ServeDir, ServeFile};
   pub use crate::handler::Handler;
   pub use crate::into_response::{Html, IntoResponse, Json};
+  #[cfg(feature = "gzip")]
+  pub use crate::middleware::gzip_with;
   pub use crate::middleware::{CorsConfig, Middleware, Next, body_limit, cors, logger, timeout};
   pub use crate::resp::{Page, Resp};
   pub use crate::response::Response;

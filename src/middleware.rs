@@ -220,12 +220,25 @@ fn apply_cors(res: &mut crate::Response, config: CorsConfig, origin: Option<&str
 /// gzip response compression for clients that send
 /// `Accept-Encoding: gzip` (requires the `gzip` feature).
 ///
-/// Skips responses that already carry a `Content-Encoding`. The
-/// `Content-Length` header is dropped (the stream length is unknown
-/// until encoding completes).
+/// Bodies smaller than 1 KiB are passed through uncompressed —
+/// compressing them costs more CPU than it saves and usually grows the
+/// payload. Tune the threshold with [`gzip_with`]. Responses that
+/// already carry a `Content-Encoding`, or have no body (204/304), are
+/// skipped. When compressing, the `Content-Length` header is dropped
+/// (the stream length is unknown until encoding completes).
 #[cfg(feature = "gzip")]
 pub fn gzip() -> impl Middleware {
-  |ctx: Context, next: Next| async move {
+  gzip_with(1024)
+}
+
+/// [`gzip`] with a configurable minimum body size in bytes. Bodies
+/// with a known size (buffered bodies report one via their size hint)
+/// below `min_size` are passed through uncompressed; streamed bodies
+/// (unknown size) are always compressed. `min_size == 0` compresses
+/// everything.
+#[cfg(feature = "gzip")]
+pub fn gzip_with(min_size: usize) -> impl Middleware {
+  move |ctx: Context, next: Next| async move {
     let accepts_gzip = ctx
       .header(hyper::header::ACCEPT_ENCODING.as_str())
       .is_some_and(|v| {
@@ -235,7 +248,18 @@ pub fn gzip() -> impl Middleware {
 
     let inner = async {
       let mut res = next.run(ctx).await?;
-      if accepts_gzip && !res.headers().contains_key(hyper::header::CONTENT_ENCODING) {
+      let status = res.status();
+      let body_too_small = http_body::Body::size_hint(res.body())
+        .exact()
+        .is_some_and(|len| (len as usize) < min_size);
+      let bodyless = status == hyper::StatusCode::NO_CONTENT
+        || status == hyper::StatusCode::NOT_MODIFIED
+        || status.is_informational();
+      if accepts_gzip
+        && !body_too_small
+        && !bodyless
+        && !res.headers().contains_key(hyper::header::CONTENT_ENCODING)
+      {
         use http_body_util::BodyExt as _;
         let body = std::mem::replace(res.body_mut(), crate::body::empty());
         let reader = tokio_util::io::StreamReader::new(body.into_data_stream());

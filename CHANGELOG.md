@@ -21,6 +21,32 @@ The public API is now **frozen**: from here, breaking changes ship only in
 - SemVer and MSRV policy documented in the README Stability section and
   `docs/1.0-plan.md` (all audit items checked off).
 
+## [1.0.0-rc.2] - 2026-09-17
+
+Performance and architecture review round (no public API changes except
+where noted).
+
+### Changed
+
+- **Dispatch: middleware chains are baked at build time.** The combined
+  global + route chain used to be rebuilt with a fresh `Vec` + boxed slice
+  on every request; it is now computed once per route at startup. Measured
+  with a counting allocator on a 5-middleware + path-param route: **38.4 →
+  35.4 heap allocations per request** (−3 exactly: the path copy, the chain
+  `Vec`, and its `Arc<[..]>` conversion), plus ~5 fewer atomic refcount
+  operations. Throughput on small workloads is unchanged (JSON + hyper
+  dominate); the saving is O(1) per request instead of O(middleware count).
+- The request path is borrowed straight from the request parts instead of
+  copied for route matching.
+- 405 responses now also flow through route-level middleware (previously
+  global only) — consistent with the CORS-preflight design — and their
+  `Allow` header is precomputed per route instead of sorted/joined per hit.
+- `gzip()` skips bodies smaller than 1 KiB (buffered bodies report their
+  size exactly; streams are always compressed) and bodyless statuses
+  (204/304/1xx) — compressing tiny bodies cost CPU and grew the payload.
+  Tunable via the new `gzip_with(min_size)` (`gzip_with(0)` compresses
+  everything). Behavior change is documented as a performance fix.
+
 ## [0.6.0] - 2026-09-17
 
 ### Added

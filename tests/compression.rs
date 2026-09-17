@@ -55,3 +55,33 @@ async fn vary_header_present() {
     .await;
   assert_eq!(res.header("vary"), Some("Accept-Encoding"));
 }
+
+#[tokio::test]
+async fn small_bodies_pass_through_uncompressed() {
+  // 5 bytes: compressing would grow the payload and waste CPU.
+  let tc = TestClient::new(app());
+  let res = tc
+    .get("/small")
+    .header("accept-encoding", "gzip")
+    .send()
+    .await;
+  res.assert_status_ok();
+  assert_eq!(res.header("content-encoding"), None);
+  assert_eq!(res.text(), "tiny");
+}
+
+#[tokio::test]
+async fn gzip_with_zero_min_compresses_everything() {
+  async fn tiny() -> impl IntoResponse {
+    desire::Json(serde_json::json!({ "ok": true })) // 15-ish bytes
+  }
+
+  let tc = TestClient::new(
+    App::new()
+      .with(desire::middleware::gzip_with(0))
+      .route("/", get(tiny)),
+  );
+  let res = tc.get("/").header("accept-encoding", "gzip").send().await;
+  res.assert_status_ok();
+  assert_eq!(res.header("content-encoding"), Some("gzip"));
+}

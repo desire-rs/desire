@@ -45,6 +45,11 @@ impl Response {
     self.inner.headers_mut()
   }
 
+  /// The response body.
+  pub fn body(&self) -> &crate::Body {
+    self.inner.body()
+  }
+
   /// Mutable access to the response body (e.g. to swap in a compressed
   /// or transformed body).
   pub fn body_mut(&mut self) -> &mut crate::Body {

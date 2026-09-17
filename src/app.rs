@@ -150,9 +150,18 @@ impl App {
     } = self;
     let mut matcher = matchit::Router::new();
     for (path, mr) in router.routes {
+      let allow = allow_header(&mr.handlers);
+      // Bake the full per-route chain (global ++ group) once, so the
+      // hot path never rebuilds it.
+      let middlewares: Vec<Arc<dyn crate::Middleware>> = global
+        .iter()
+        .cloned()
+        .chain(mr.middlewares.iter().cloned())
+        .collect();
       let flat = FlatRoute {
         methods: mr.handlers,
-        middlewares: mr.middlewares.into(),
+        middlewares: middlewares.into(),
+        allow,
       };
       if let Err(e) = matcher.insert(path.clone(), flat) {
         panic!("route conflict at `{path}`: {e}");
@@ -175,7 +184,11 @@ async fn default_fallback(_ctx: Context) -> Resp<()> {
 /// A flattened route, the value stored in the matcher.
 pub(crate) struct FlatRoute {
   pub methods: HashMap<Method, AnyHandler>,
+  /// The complete chain for this route: global middleware ++ group
+  /// middleware, baked at build time.
   pub middlewares: Arc<[Arc<dyn crate::Middleware>]>,
+  /// Precomputed `Allow` header value for 405 responses.
+  pub allow: Arc<str>,
 }
 
 /// The compiled, immutable app — shared across connections.
@@ -207,9 +220,8 @@ where
   let on_upgrade = parts.extensions.remove::<hyper::upgrade::OnUpgrade>();
   let cookies_out: Arc<Mutex<Vec<cookie::Cookie<'static>>>> = Arc::default();
   let method = parts.method;
-  let path = parts.uri.path().to_owned();
-
-  let matched = app.matcher.at(&path);
+  // Borrow the path straight out of the request parts — no copy.
+  let matched = app.matcher.at(parts.uri.path());
   match matched {
     Ok(m) => {
       let route = &m.value;
@@ -219,29 +231,22 @@ where
         method.clone()
       };
 
+      // A path hit with an unregistered method still flows through its
+      // middleware (so CORS preflight and logging see it); the terminal
+      // handler renders the precomputed 405 + Allow response.
+      let (handler, middlewares): (AnyHandler, Arc<[Arc<dyn crate::Middleware>]>) =
+        match route.methods.get(&effective) {
+          Some(handler) => (Arc::clone(handler), Arc::clone(&route.middlewares)),
+          None => (
+            to_any(not_allowed(Arc::clone(&route.allow))),
+            Arc::clone(&route.middlewares),
+          ),
+        };
+
       let mut params = HashMap::new();
       for (name, value) in m.params.iter() {
         params.insert(name.to_owned(), percent_decode(value));
       }
-
-      // A path hit with an unregistered method still flows through the
-      // global chain (so CORS preflight and logging see it); the
-      // terminal handler renders the 405 + Allow response.
-      let (handler, chain): (AnyHandler, Vec<_>) = match route.methods.get(&effective) {
-        Some(handler) => (
-          Arc::clone(handler),
-          app
-            .global
-            .iter()
-            .cloned()
-            .chain(route.middlewares.iter().cloned())
-            .collect(),
-        ),
-        None => (
-          to_any(not_allowed(route)),
-          app.global.iter().cloned().collect(),
-        ),
-      };
 
       let ctx = Context::new(
         method.clone(),
@@ -257,7 +262,7 @@ where
       );
 
       let next = Next {
-        middlewares: chain.into(),
+        middlewares,
         handler,
         index: 0,
       };
@@ -318,19 +323,21 @@ fn apply_set_cookies(
   }
 }
 
-/// The 405 response as a handler, so it flows through middleware.
-fn not_allowed(route: &FlatRoute) -> impl Handler<()> {
-  let mut allow: Vec<&str> = route.methods.keys().map(Method::as_str).collect();
+/// The `Allow` header value for a route's registered methods.
+fn allow_header(methods: &HashMap<Method, AnyHandler>) -> Arc<str> {
+  let mut allow: Vec<&str> = methods.keys().map(Method::as_str).collect();
   if !allow.contains(&"HEAD") && allow.contains(&"GET") {
     allow.push("HEAD");
   }
   allow.sort_unstable();
   allow.dedup();
-  let allow = allow.join(", ");
-  tracing::debug!(allow = %allow, "method not allowed");
+  Arc::from(allow.join(", ").as_str())
+}
 
+/// The 405 response as a handler, so it flows through middleware.
+fn not_allowed(allow: Arc<str>) -> impl Handler<()> {
   move || {
-    let allow = allow.clone();
+    let allow = Arc::clone(&allow);
     async move {
       let mut res = Error::MethodNotAllowed.to_resp().into_response();
       if let Ok(value) = HeaderValue::from_str(&allow) {
