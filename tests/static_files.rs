@@ -326,3 +326,78 @@ async fn listing_disabled_defaults_to_404() {
 
   std::fs::remove_dir_all(dir).ok();
 }
+
+/// An adversarial battery of hostile path encodings. None of them may
+/// ever read the secret outside the root (or inside it, for dotfiles).
+#[tokio::test]
+async fn hostile_path_battery_never_leaks() {
+  let dir = unique_dir("battery");
+  let assets = dir.join("assets");
+  std::fs::create_dir_all(&assets).unwrap();
+  std::fs::write(assets.join("ok.txt"), b"fine").unwrap();
+  std::fs::write(dir.join("secret.txt"), b"SECRET").unwrap();
+
+  let app = App::new().route("/static/{*path}", ServeDir::new(assets.clone()));
+  let tc = TestClient::new(app);
+
+  let hostile = [
+    // classic traversal
+    "/static/../secret.txt",
+    "/static/../../secret.txt",
+    "/static/../../../secret.txt",
+    // percent-encoded
+    "/static/%2e%2e/secret.txt",
+    "/static/%2E%2E/secret.txt",
+    "/static/%2e%2e%2fsecret.txt",
+    "/static/..%2fsecret.txt",
+    "/static/%2e%2e%5csecret.txt",
+    // double-encoded
+    "/static/%252e%252e/secret.txt",
+    "/static/%25252e%25252e/secret.txt",
+    // overlong / invalid utf-8 tricks
+    "/static/%c0%ae%c0%ae/secret.txt",
+    "/static/..%c0%afsecret.txt",
+    // separators and misc
+    "/static/..\\secret.txt",
+    "/static/....//secret.txt",
+    "/static/..;/secret.txt",
+    "/static//..//secret.txt",
+    "/static/./../secret.txt",
+    "/static/..%00.txt",
+    "/static/secret.txt%00",
+    "/static/%00",
+    // absolute and windows-flavored
+    "/static//etc/passwd",
+    "/static/C:/windows/win.ini",
+    "/static/c%3A%5Cwindows%5Cwin.ini",
+    // dotfile guard
+    "/static/.env",
+    "/static/%2eenv",
+    // long path abuse
+    "/static/../../../a/b/c/d/e/f/../../../../../../secret.txt",
+  ];
+
+  for path in hostile {
+    let res = tc.get(path).send().await;
+    let body = res.text();
+    assert!(
+      !body.contains("SECRET"),
+      "hostile path leaked secret: {path} -> {body}"
+    );
+    // anything that slipped past the guard must still not be the secret file
+    if res.status() == StatusCode::OK {
+      assert_eq!(
+        res.text(),
+        "fine",
+        "hostile path resolved outside allowlist: {path}"
+      );
+    }
+  }
+
+  // sanity: the real file is still there and still served
+  let res = tc.get("/static/ok.txt").send().await;
+  res.assert_status_ok();
+  assert_eq!(res.text(), "fine");
+
+  std::fs::remove_dir_all(dir).ok();
+}

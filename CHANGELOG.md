@@ -4,6 +4,20 @@ All notable changes to desire are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/); versions follow
 [SemVer](https://semver.org) (0.x: breaking changes ship as minor bumps).
 
+## [0.6.0] - 2026-09-17
+
+### Added
+
+- The docs.rs front page is now a full guide + cookbook: routing, extraction,
+  responses, state, middleware, errors, static files, SSE/WebSockets,
+  testing, deployment — every example is compile-checked as a doctest.
+- Adversarial path battery test: 26 hostile encodings (double-encoded
+  `%252e`, overlong `%c0%ae`, `..;`, NUL, Windows forms, …) verified to
+  never leak outside the served root.
+- Doc examples for `Error`, `Json<T>`, `Html<T>`.
+- `docs.rs` builds with all features (`package.metadata.docs.rs`), so the
+  `tls`/`ws`/`gzip`/`openapi` modules are documented.
+
 ## [0.5.0] - 2026-09-17
 
 ### Added

@@ -117,6 +117,17 @@ impl IntoResponse for serde_json::Value {
 
 /// A JSON response outside the envelope: `Json(user)` serializes `user`
 /// directly, for APIs that do not use the `Resp` convention.
+///
+/// ```no_run
+/// use desire::prelude::*;
+/// # use serde::Serialize;
+/// # #[derive(Serialize)] struct Stats { requests: u64 }
+/// # fn stats() -> Stats { Stats { requests: 1 } }
+/// async fn raw_json() -> impl IntoResponse {
+///     Json(stats()) // {"requests":1}, no {"code":..} wrapper
+/// }
+/// # fn main() {}
+/// ```
 #[derive(Debug, Clone)]
 pub struct Json<T>(pub T);
 
@@ -132,6 +143,14 @@ where
 }
 
 /// An HTML response: `Html("<h1>hi</h1>")`.
+///
+/// ```no_run
+/// use desire::prelude::*;
+/// async fn page() -> impl IntoResponse {
+///     Html("<h1>hello</h1>") // text/html; charset=utf-8
+/// }
+/// # fn main() {}
+/// ```
 #[derive(Debug, Clone)]
 pub struct Html<T>(pub T);
 

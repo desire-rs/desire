@@ -9,6 +9,19 @@ use crate::{IntoResponse, Resp, Response};
 
 /// The framework error. Every error carries enough context to render a
 /// precise message; internal details never leak to the client.
+///
+/// ```no_run
+/// use desire::prelude::*;
+///
+/// async fn pay(ctx: Context) -> Result<Resp<()>> {
+///     let balance_ok = true;
+///     if !balance_ok {
+///         return Err(Error::business(40001, "余额不足"));
+///     }
+///     Ok(Resp::ok(()))
+/// }
+/// # fn main() {}
+/// ```
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
   /// The request itself is invalid (HTTP 400).
