@@ -4,6 +4,23 @@ All notable changes to desire are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/); versions follow
 [SemVer](https://semver.org) (0.x: breaking changes ship as minor bumps).
 
+## [1.0.0-rc.1] - 2026-09-17
+
+The public API is now **frozen**: from here, breaking changes ship only in
+2.0. Four weeks without a blocking incident promotes this to 1.0.0.
+
+### Added
+
+- `Server::on_bound(callback)`: learn the actually bound address — required
+  for port-0 binds in tests and service meshes. (Final API-audit fix.)
+- Root re-exports completed: `FormData`, `UploadedFile`, `Event`, `Sse` are
+  now reachable at the crate root like every other core type.
+
+### Policy
+
+- SemVer and MSRV policy documented in the README Stability section and
+  `docs/1.0-plan.md` (all audit items checked off).
+
 ## [0.6.0] - 2026-09-17
 
 ### Added

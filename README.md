@@ -157,10 +157,13 @@ async fn get_user_ok() {
 
 ## Stability
 
-desire is pre-1.0: breaking changes ship as minor bumps (SemVer within 0.x).
-The path to the 1.0 API-stability commitment — frozen envelope, frozen
-extraction surface, exclusions — lives in
-[docs/1.0-plan.md](docs/1.0-plan.md).
+desire is at **1.0 release-candidate**: the public API is frozen. From 1.0,
+breaking changes ship only in new major versions; new features and MSRV
+bumps ship as minor releases; fixes as patches. New feature-gated modules
+(`tls`, `ws`, `gzip`, `openapi`, …) are considered non-breaking additions.
+MSRV follows "latest stable Rust minus two" and only moves in minor
+releases. The full freeze checklist and decisions that are intentional
+(not bugs) live in [docs/1.0-plan.md](docs/1.0-plan.md).
 
 ## License
 

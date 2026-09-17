@@ -6,13 +6,6 @@ use desire::prelude::*;
 use futures_util::{SinkExt, StreamExt};
 use tokio_tungstenite::tungstenite::Message;
 
-fn free_port() -> u16 {
-  let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
-  let port = listener.local_addr().unwrap().port();
-  drop(listener);
-  port
-}
-
 async fn echo(ctx: Context) -> Result {
   let ws = ctx.websocket()?;
   Ok(ws.on_upgrade(|mut socket| async move {
@@ -25,16 +18,19 @@ async fn echo(ctx: Context) -> Result {
 }
 
 async fn spawn_server() -> u16 {
-  let port = free_port();
+  let (tx, rx) = tokio::sync::oneshot::channel();
   let app = App::new().route("/ws", get(echo));
   tokio::spawn(async move {
     let _ = Server::new(app)
-      .bind(&format!("127.0.0.1:{port}"))
+      .bind("127.0.0.1:0")
       .unwrap()
+      .on_bound(move |addr| {
+        tx.send(addr).ok();
+      })
       .run()
       .await;
   });
-  port
+  rx.await.expect("server reported no bound address").port()
 }
 
 #[tokio::test]

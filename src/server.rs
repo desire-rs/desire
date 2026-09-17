@@ -44,6 +44,7 @@ pub struct Server {
   addr: SocketAddr,
   shutdown: Option<BoxFuture<'static, ()>>,
   concurrency: Option<usize>,
+  on_bound: Option<Box<dyn FnOnce(SocketAddr) + Send>>,
   #[cfg(feature = "tls")]
   tls: Option<crate::tls::TlsConfig>,
 }
@@ -56,6 +57,7 @@ impl Server {
       addr: "127.0.0.1:3000".parse().expect("default addr"),
       shutdown: None,
       concurrency: None,
+      on_bound: None,
       #[cfg(feature = "tls")]
       tls: None,
     }
@@ -94,6 +96,26 @@ impl Server {
     self
   }
 
+  /// Invoke a callback with the actually bound address once the
+  /// listener is up — essential when binding port `0` for tests or
+  /// service meshes.
+  ///
+  /// ```no_run
+  /// use desire::prelude::*;
+  /// # async fn demo(app: App) -> desire::Result<()> {
+  /// Server::new(app)
+  ///     .bind("127.0.0.1:0")?
+  ///     .on_bound(|addr| println!("listening on {addr}"))
+  ///     .run()
+  ///     .await
+  /// # }
+  /// # fn main() {}
+  /// ```
+  pub fn on_bound(mut self, f: impl FnOnce(SocketAddr) + Send + 'static) -> Self {
+    self.on_bound = Some(Box::new(f));
+    self
+  }
+
   /// Serve until the shutdown signal fires (or forever).
   pub async fn run(self) -> Result<()> {
     let Server {
@@ -101,6 +123,7 @@ impl Server {
       addr,
       shutdown,
       concurrency,
+      mut on_bound,
       #[cfg(feature = "tls")]
       tls,
     } = self;
@@ -109,7 +132,11 @@ impl Server {
     let listener = TcpListener::bind(addr)
       .await
       .map_err(|e| crate::Error::internal(format!("failed to bind {addr}: {e}")))?;
-    info!(%addr, "listening");
+    let bound = listener.local_addr().map_err(crate::Error::internal)?;
+    if let Some(f) = on_bound.take() {
+      f(bound);
+    }
+    info!(%bound, "listening");
 
     let semaphore = concurrency.map(|n| Arc::new(Semaphore::new(n)));
     let graceful = GracefulShutdown::new();

@@ -212,8 +212,8 @@
 //!
 //! ## Server-sent events
 //!
-//! [`Event`](crate::sse::Event) builds frames;
-//! [`Sse`](crate::sse::Sse) turns any stream into a
+//! `Event` builds frames;
+//! `Sse` turns any stream into a
 //! `text/event-stream` response; `keep_alive` emits comment frames while
 //! the stream is idle so proxies keep the connection open.
 //!
@@ -403,6 +403,7 @@ pub use bytes::Bytes;
 pub use context::Context;
 pub use cookie;
 pub use error::Error;
+pub use form::{FormData, UploadedFile};
 pub use fs::{ServeDir, ServeFile};
 pub use handler::{Handler, WithContext};
 pub use into_response::{Html, IntoResponse, Json};
@@ -411,6 +412,7 @@ pub use resp::{Page, Resp};
 pub use response::Response;
 pub use router::{MethodRouter, Router};
 pub use server::Server;
+pub use sse::{Event, Sse};
 pub use types::{BoxError, BoxFuture, Result};
 
 #[cfg(feature = "tls")]
