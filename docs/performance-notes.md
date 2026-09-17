@@ -16,6 +16,25 @@ stable metric.
 
 Net: **−20% heap allocations per request**, with zero public API changes.
 
+## Reference: same-workload comparison with axum
+
+Per the 1.0 plan this is published as reference data, not a selling point.
+Two example binaries do byte-identical work — one path param + a
+`{"code":0,"msg":"ok","data":…}` JSON response — under the same counting
+allocator (`examples/bench.rs`, `examples/bench_axum.rs`, axum 0.8):
+
+| Framework | allocs/request | throughput (ab, 20 conn) |
+|-----------|---------------:|--------------------------|
+| desire 1.0.0-rc.3 | **30.4** (stable across runs) | 5.4k–11.8k (noisy) |
+| axum 0.8 | **46.4** (stable across runs) | 7.0k–13.0k (noisy) |
+
+Read honestly: throughput on this localhost debug-build setup cannot
+separate the two (both sit on hyper; run-to-run variance is ±40%), and we
+do not claim a throughput difference. The reproducible signal is
+allocation pressure: desire's dispatch + envelope do ~35% fewer heap
+allocations for equivalent work, which shows up as steadier latency under
+allocator contention rather than as headline RPS.
+
 ## Throughput (ab, debug build, same machine)
 
 Unchanged within noise (~15k RPS ±5% across configurations): on small
