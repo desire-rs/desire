@@ -64,6 +64,12 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Create GitHub release
-        run: gh release create "$GITHUB_REF_NAME" --title "desire $GITHUB_REF_NAME" --generate-notes
+        # Tags with a suffix (v1.0.0-rc.1) are marked prerelease.
+        run: |
+          if [[ "$GITHUB_REF_NAME" == *-* ]]; then
+            gh release create "$GITHUB_REF_NAME" --title "desire $GITHUB_REF_NAME" --generate-notes --prerelease
+          else
+            gh release create "$GITHUB_REF_NAME" --title "desire $GITHUB_REF_NAME" --generate-notes
+          fi
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
