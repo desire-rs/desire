@@ -1,7 +1,6 @@
 //! `App` — routes, shared state, global middleware, and the dispatch
 //! pipeline that ties everything together.
 
-use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::sync::{Arc, Mutex};
 
@@ -183,7 +182,7 @@ async fn default_fallback(_ctx: Context) -> Resp<()> {
 
 /// A flattened route, the value stored in the matcher.
 pub(crate) struct FlatRoute {
-  pub methods: HashMap<Method, AnyHandler>,
+  pub methods: Vec<(Method, AnyHandler)>,
   /// The complete chain for this route: global middleware ++ group
   /// middleware, baked at build time.
   pub middlewares: Arc<[Arc<dyn crate::Middleware>]>,
@@ -225,7 +224,8 @@ where
   match matched {
     Ok(m) => {
       let route = &m.value;
-      let effective = if method == Method::HEAD && !route.methods.contains_key(&Method::HEAD) {
+      let has_method = |m: &Method| route.methods.iter().any(|(registered, _)| registered == m);
+      let effective = if method == Method::HEAD && !has_method(&Method::HEAD) {
         Method::GET
       } else {
         method.clone()
@@ -234,18 +234,22 @@ where
       // A path hit with an unregistered method still flows through its
       // middleware (so CORS preflight and logging see it); the terminal
       // handler renders the precomputed 405 + Allow response.
-      let (handler, middlewares): (AnyHandler, Arc<[Arc<dyn crate::Middleware>]>) =
-        match route.methods.get(&effective) {
-          Some(handler) => (Arc::clone(handler), Arc::clone(&route.middlewares)),
-          None => (
-            to_any(not_allowed(Arc::clone(&route.allow))),
-            Arc::clone(&route.middlewares),
-          ),
-        };
+      let (handler, middlewares): (AnyHandler, Arc<[Arc<dyn crate::Middleware>]>) = match route
+        .methods
+        .iter()
+        .find(|(registered, _)| *registered == effective)
+        .map(|(_, handler)| handler)
+      {
+        Some(handler) => (Arc::clone(handler), Arc::clone(&route.middlewares)),
+        None => (
+          to_any(not_allowed(Arc::clone(&route.allow))),
+          Arc::clone(&route.middlewares),
+        ),
+      };
 
-      let mut params = HashMap::new();
+      let mut params: Vec<(String, String)> = Vec::new();
       for (name, value) in m.params.iter() {
-        params.insert(name.to_owned(), percent_decode(value));
+        params.push((name.to_owned(), percent_decode(value)));
       }
 
       let ctx = Context::new(
@@ -286,7 +290,7 @@ where
         method,
         parts.uri,
         parts.headers,
-        HashMap::new(),
+        Vec::new(),
         inner,
         app.max_body_size,
         Arc::clone(&app.state),
@@ -324,8 +328,8 @@ fn apply_set_cookies(
 }
 
 /// The `Allow` header value for a route's registered methods.
-fn allow_header(methods: &HashMap<Method, AnyHandler>) -> Arc<str> {
-  let mut allow: Vec<&str> = methods.keys().map(Method::as_str).collect();
+fn allow_header(methods: &[(Method, AnyHandler)]) -> Arc<str> {
+  let mut allow: Vec<&str> = methods.iter().map(|(method, _)| method.as_str()).collect();
   if !allow.contains(&"HEAD") && allow.contains(&"GET") {
     allow.push("HEAD");
   }

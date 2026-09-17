@@ -1,6 +1,5 @@
 //! The per-request context: request data extraction and typed storage.
 
-use std::collections::HashMap;
 use std::fmt::Write as _;
 use std::net::SocketAddr;
 use std::pin::Pin;
@@ -29,7 +28,9 @@ pub struct Context {
   method: Method,
   uri: Uri,
   headers: HeaderMap,
-  params: HashMap<String, String>,
+  // Path params as a small assoc list: routes have 0-2 params, where a
+  // linear scan beats hashing (no table alloc, no SipHash per request).
+  params: Vec<(String, String)>,
   body: Mutex<BodySlot>,
   extensions: crate::state::TypeMap,
   // Read only behind the ws feature; kept unconditionally so dispatch
@@ -53,7 +54,7 @@ impl Context {
     method: Method,
     uri: Uri,
     headers: HeaderMap,
-    params: HashMap<String, String>,
+    params: Vec<(String, String)>,
     incoming: AnyBody,
     max_body_size: usize,
     state: Arc<StateMap>,
@@ -132,8 +133,9 @@ impl Context {
   pub fn param_raw(&self, name: &str) -> Result<&str> {
     self
       .params
-      .get(name)
-      .map(String::as_str)
+      .iter()
+      .find(|(k, _)| k == name)
+      .map(|(_, v)| v.as_str())
       .ok_or_else(|| missing_param(name))
   }
 
@@ -510,6 +512,7 @@ fn hex_val(b: u8) -> Option<u8> {
 mod tests {
   use super::*;
   use serde::Deserialize;
+  use std::collections::HashMap;
 
   #[test]
   fn decode_roundtrip() {

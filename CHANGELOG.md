@@ -47,6 +47,17 @@ where noted).
   Tunable via the new `gzip_with(min_size)` (`gzip_with(0)` compresses
   everything). Behavior change is documented as a performance fix.
 
+## [1.0.0-rc.3] - 2026-09-17
+
+### Changed
+
+- Path params (`Context::params`) and `MethodRouter` method lookup switched
+  from `HashMap` to small assoc lists — routes have 0–2 params and a
+  handful of methods, where linear scan beats hashing. Measured with a
+  counting allocator: **38.4 → 30.6 heap allocations per request (−20%)**
+  since rc.1, no public API changes. Methodology and profile findings in
+  `docs/performance-notes.md`.
+
 ## [0.6.0] - 2026-09-17
 
 ### Added

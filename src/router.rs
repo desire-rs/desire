@@ -1,7 +1,6 @@
 //! Routing: [`MethodRouter`] (per-path method → handler map) and
 //! [`Router`] (a composable tree of routes with group middleware).
 
-use std::collections::HashMap;
 use std::sync::Arc;
 
 use hyper::Method;
@@ -14,7 +13,9 @@ use crate::handler::{AnyHandler, Handler, to_any};
 /// handler (via [`IntoMethodRouter`]) implies `GET` + `HEAD`.
 #[derive(Default)]
 pub struct MethodRouter {
-  pub(crate) handlers: HashMap<Method, AnyHandler>,
+  // A small assoc list: a path serves a handful of methods, where a
+  // linear scan beats hashing on every request.
+  pub(crate) handlers: Vec<(Method, AnyHandler)>,
   pub(crate) middlewares: Vec<Arc<dyn crate::Middleware>>,
 }
 
@@ -22,7 +23,7 @@ impl MethodRouter {
   /// An empty router.
   pub fn new() -> Self {
     MethodRouter {
-      handlers: HashMap::new(),
+      handlers: Vec::new(),
       middlewares: Vec::new(),
     }
   }
@@ -31,7 +32,7 @@ impl MethodRouter {
   where
     H: Handler<T>,
   {
-    self.handlers.insert(method, to_any(handler));
+    self.handlers.push((method, to_any(handler)));
     self
   }
 
