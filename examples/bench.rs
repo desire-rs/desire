@@ -11,18 +11,18 @@ struct Counting;
 unsafe impl GlobalAlloc for Counting {
   unsafe fn alloc(&self, l: Layout) -> *mut u8 {
     ALLOCS.fetch_add(1, Ordering::Relaxed);
-    System.alloc(l)
+    unsafe { System.alloc(l) }
   }
   unsafe fn dealloc(&self, p: *mut u8, l: Layout) {
-    System.dealloc(p, l)
+    unsafe { System.dealloc(p, l) }
   }
   unsafe fn realloc(&self, p: *mut u8, l: Layout, n: usize) -> *mut u8 {
     ALLOCS.fetch_add(1, Ordering::Relaxed);
-    System.realloc(p, l, n)
+    unsafe { System.realloc(p, l, n) }
   }
   unsafe fn alloc_zeroed(&self, l: Layout) -> *mut u8 {
     ALLOCS.fetch_add(1, Ordering::Relaxed);
-    System.alloc_zeroed(l)
+    unsafe { System.alloc_zeroed(l) }
   }
 }
 
