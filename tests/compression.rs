@@ -85,3 +85,40 @@ async fn gzip_with_zero_min_compresses_everything() {
   res.assert_status_ok();
   assert_eq!(res.header("content-encoding"), Some("gzip"));
 }
+
+#[tokio::test]
+async fn partial_content_responses_are_not_compressed() {
+  async fn range(_ctx: Context) -> impl IntoResponse {
+    (StatusCode::PARTIAL_CONTENT, "partial body")
+  }
+
+  let tc = TestClient::new(
+    App::new()
+      .with(desire::middleware::gzip())
+      .route("/p", get(range)),
+  );
+  let res = tc.get("/p").header("accept-encoding", "gzip").send().await;
+  res.assert_status(StatusCode::PARTIAL_CONTENT);
+  assert_eq!(res.header("content-encoding"), None);
+  assert_eq!(res.text(), "partial body");
+}
+
+#[tokio::test]
+async fn gzip_q_zero_disables_compression() {
+  let tc = TestClient::new(app());
+  let res = tc
+    .get("/big")
+    .header("accept-encoding", "gzip;q=0")
+    .send()
+    .await;
+  res.assert_status_ok();
+  assert_eq!(res.header("content-encoding"), None);
+
+  let res = tc
+    .get("/big")
+    .header("accept-encoding", "gzip;q=1")
+    .send()
+    .await;
+  res.assert_status_ok();
+  assert_eq!(res.header("content-encoding"), Some("gzip"));
+}

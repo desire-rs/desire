@@ -1,12 +1,10 @@
 //! TLS support (requires the `tls` feature): rustls with ALPN
 //! negotiating HTTP/2 and HTTP/1.1 on the same port.
 
-use std::fs::File;
-use std::io::BufReader;
 use std::path::Path;
 use std::sync::Arc;
 
-use rustls::pki_types::{CertificateDer, PrivateKeyDer};
+use rustls::pki_types::{CertificateDer, PrivateKeyDer, pem::PemObject};
 use tokio::net::TcpStream;
 use tokio_rustls::TlsAcceptor;
 
@@ -43,8 +41,10 @@ pub struct TlsConfigBuilder {
 impl TlsConfigBuilder {
   /// Load a PEM certificate chain (leaf first, then intermediates).
   pub fn cert_file(mut self, path: impl AsRef<Path>) -> std::io::Result<Self> {
-    let mut reader = BufReader::new(File::open(path.as_ref())?);
-    let certs: Vec<_> = rustls_pemfile::certs(&mut reader).collect::<Result<_, _>>()?;
+    let certs: Vec<_> = CertificateDer::pem_file_iter(path)
+      .map_err(pem_error)?
+      .collect::<Result<_, _>>()
+      .map_err(pem_error)?;
     if certs.is_empty() {
       return Err(std::io::Error::new(
         std::io::ErrorKind::InvalidData,
@@ -57,9 +57,7 @@ impl TlsConfigBuilder {
 
   /// Load the PEM private key (PKCS#8, PKCS#1, or SEC1).
   pub fn key_file(mut self, path: impl AsRef<Path>) -> std::io::Result<Self> {
-    let mut reader = BufReader::new(File::open(path.as_ref())?);
-    let key = rustls_pemfile::private_key(&mut reader)?
-      .ok_or_else(|| std::io::Error::new(std::io::ErrorKind::InvalidData, "no key found"))?;
+    let key = PrivateKeyDer::from_pem_file(path).map_err(pem_error)?;
     self.key = Some(key);
     Ok(self)
   }
@@ -78,4 +76,9 @@ impl TlsConfigBuilder {
       acceptor: TlsAcceptor::from(Arc::new(server_config)),
     })
   }
+}
+
+/// Present `rustls-pki-types` PEM errors through `io::Error`.
+fn pem_error(e: rustls::pki_types::pem::Error) -> std::io::Error {
+  std::io::Error::new(std::io::ErrorKind::InvalidData, e.to_string())
 }

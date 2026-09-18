@@ -32,7 +32,13 @@ impl MethodRouter {
   where
     H: Handler<T>,
   {
-    self.handlers.push((method, to_any(handler)));
+    let handler = to_any(handler);
+    // Last registration wins for a duplicated method, matching the
+    // builder-pattern expectation.
+    match self.handlers.iter_mut().find(|(m, _)| *m == method) {
+      Some((_, existing)) => *existing = handler,
+      None => self.handlers.push((method, handler)),
+    }
     self
   }
 

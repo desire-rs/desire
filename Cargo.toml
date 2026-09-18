@@ -14,7 +14,7 @@ name = "desire"
 publish = true
 readme = "README.md"
 repository = "https://github.com/desire-rs/desire"
-version = "1.0.0-rc.4"
+version = "1.0.0-rc.5"
 rust-version = "1.85"
 
 include = [
@@ -29,7 +29,7 @@ rustdoc-args = ["--cfg", "docsrs"]
 
 [features]
 default = []
-tls = ["dep:rustls", "dep:tokio-rustls", "dep:rustls-pemfile"]
+tls = ["dep:rustls", "dep:tokio-rustls", "dep:rustls-pki-types"]
 ws = ["dep:tokio-tungstenite"]
 gzip = ["dep:async-compression", "dep:tokio-util"]
 openapi = ["dep:schemars"]
@@ -47,7 +47,7 @@ matchit = "0.8"
 mime_guess = "2"
 multer = "3"
 rustls = { version = "0.23", optional = true, default-features = false, features = ["ring", "std"] }
-rustls-pemfile = { version = "2", optional = true }
+rustls-pki-types = { version = "1", optional = true }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 serde_urlencoded = "0.7"

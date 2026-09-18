@@ -348,7 +348,10 @@ impl CookieJar {
     if !self.non_empty.load(Ordering::Acquire) {
       return;
     }
-    let jar = self.queue.lock().expect("cookie lock poisoned");
+    let jar = self
+      .queue
+      .lock()
+      .unwrap_or_else(std::sync::PoisonError::into_inner);
     for cookie in jar.iter() {
       if let Ok(value) = hyper::header::HeaderValue::from_str(&cookie.to_string()) {
         res.headers_mut().append(hyper::header::SET_COOKIE, value);

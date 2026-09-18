@@ -712,3 +712,63 @@ async fn body_stream_after_buffered_read_yields_cache() {
   res.assert_status_ok();
   assert_eq!(res.assert_ok_data::<String>(), "cached!");
 }
+
+// ---- audit-round fixes ----
+
+#[tokio::test]
+async fn duplicate_method_registration_last_wins() {
+  async fn first(_ctx: Context) -> Resp<&'static str> {
+    Resp::ok("first")
+  }
+
+  async fn second(_ctx: Context) -> Resp<&'static str> {
+    Resp::ok("second")
+  }
+
+  let app = App::new().route("/x", get(first).get(second));
+  let tc = TestClient::new(app);
+  let res = tc.get("/x").send().await;
+  res.assert_status_ok();
+  assert_eq!(res.assert_ok_data::<String>(), "second");
+}
+
+#[tokio::test]
+async fn content_type_match_is_case_insensitive() {
+  async fn handler(ctx: Context) -> Result<Resp<CreateUser>> {
+    Ok(Resp::ok(ctx.json().await?))
+  }
+
+  let app = App::new().route("/json", post(handler));
+  let tc = TestClient::new(app);
+  let res = tc
+    .post("/json")
+    .header("content-type", "Application/JSON; Charset=UTF-8")
+    .body(Bytes::from_static(b"{\"name\": \"carol\"}"))
+    .send()
+    .await;
+  res.assert_status_ok();
+  let user: CreateUser = res.assert_ok_data();
+  assert_eq!(user.name, "carol");
+}
+
+#[tokio::test]
+async fn cors_origin_match_is_case_insensitive() {
+  let config = desire::middleware::CorsConfig {
+    origins: vec!["https://example.com".to_owned()],
+    ..Default::default()
+  };
+  let app = App::new()
+    .with(desire::middleware::cors(config))
+    .route("/", get(|| async { Resp::ok(()) }));
+  let tc = TestClient::new(app);
+  let res = tc
+    .get("/")
+    .header("origin", "https://EXAMPLE.com")
+    .send()
+    .await;
+  res.assert_status_ok();
+  assert_eq!(
+    res.header("access-control-allow-origin"),
+    Some("https://EXAMPLE.com")
+  );
+}

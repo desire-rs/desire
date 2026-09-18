@@ -178,7 +178,12 @@ fn apply_cors(res: &mut crate::Response, config: CorsConfig, origin: Option<&str
   let mut headers = std::mem::take(res.headers_mut());
   let allow_origin = match origin {
     Some(req_origin) => {
-      if config.origins.iter().any(|o| o == "*" || o == req_origin) {
+      // Scheme and host are case-insensitive; compare accordingly.
+      if config
+        .origins
+        .iter()
+        .any(|o| o == "*" || o.eq_ignore_ascii_case(req_origin))
+      {
         Some(req_origin.to_owned())
       } else {
         None
@@ -242,8 +247,21 @@ pub fn gzip_with(min_size: usize) -> impl Middleware {
     let accepts_gzip = ctx
       .header(hyper::header::ACCEPT_ENCODING.as_str())
       .is_some_and(|v| {
-        v.split(',')
-          .any(|part| part.split(';').next().unwrap_or("").trim() == "gzip")
+        v.split(',').any(|part| {
+          let mut segments = part.split(';');
+          let name = segments.next().unwrap_or("").trim();
+          // `gzip;q=0` explicitly refuses gzip.
+          name.eq_ignore_ascii_case("gzip")
+            && segments.all(|param| {
+              let param = param.trim();
+              !param.starts_with("q=")
+                || !param[2..]
+                  .trim()
+                  .parse::<f32>()
+                  .map(|q| q == 0.0)
+                  .unwrap_or(false)
+            })
+        })
       });
 
     let inner = async {
@@ -251,10 +269,12 @@ pub fn gzip_with(min_size: usize) -> impl Middleware {
       let status = res.status();
       let body_too_small = http_body::Body::size_hint(res.body())
         .exact()
-        .is_some_and(|len| (len as usize) < min_size);
-      let bodyless = status == hyper::StatusCode::NO_CONTENT
+        .is_some_and(|len| len < u64::try_from(min_size).unwrap_or(u64::MAX));
+      let bodyless = status.is_informational()
+        || status == hyper::StatusCode::NO_CONTENT
         || status == hyper::StatusCode::NOT_MODIFIED
-        || status.is_informational();
+        // Compressing a range response would break Content-Range.
+        || status == hyper::StatusCode::PARTIAL_CONTENT;
       if accepts_gzip
         && !body_too_small
         && !bodyless

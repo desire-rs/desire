@@ -171,7 +171,7 @@ impl Context {
   /// Errors carry the serde path, e.g. `body.email: missing field`.
   pub async fn json<T: DeserializeOwned>(&self) -> Result<T> {
     if let Some(ct) = self.header_str(hyper::header::CONTENT_TYPE.as_str()) {
-      if !ct.contains("json") {
+      if !ct.to_ascii_lowercase().contains("json") {
         return Err(Error::Body(format!(
           "expected a JSON content-type, got `{ct}`"
         )));
@@ -184,7 +184,7 @@ impl Context {
   /// Read and deserialize an `application/x-www-form-urlencoded` body.
   pub async fn form<T: DeserializeOwned>(&self) -> Result<T> {
     if let Some(ct) = self.header_str(hyper::header::CONTENT_TYPE.as_str()) {
-      if !ct.contains("urlencoded") {
+      if !ct.to_ascii_lowercase().contains("urlencoded") {
         return Err(Error::Body(format!(
           "expected an urlencoded content-type, got `{ct}`"
         )));
@@ -200,7 +200,10 @@ impl Context {
   /// `form`, and `body_bytes` can be mixed freely.
   pub async fn body_bytes(&self) -> Result<Bytes> {
     let (incoming, limit) = {
-      let mut slot = self.body.lock().expect("body lock poisoned");
+      let mut slot = self
+        .body
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
       if let Some(bytes) = &slot.cache {
         return Ok(bytes.clone());
       }
@@ -224,7 +227,11 @@ impl Context {
         return Err(Error::Body(format!("failed to read request body: {e}")));
       }
     };
-    self.body.lock().expect("body lock poisoned").cache = Some(bytes.clone());
+    self
+      .body
+      .lock()
+      .unwrap_or_else(std::sync::PoisonError::into_inner)
+      .cache = Some(bytes.clone());
     Ok(bytes)
   }
 
@@ -290,7 +297,10 @@ impl Context {
   /// yields the cached bytes as a single-chunk stream.)
   pub fn body_stream(&self) -> crate::body::BodyStream {
     let (inner, cached) = {
-      let mut slot = self.body.lock().expect("body lock poisoned");
+      let mut slot = self
+        .body
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
       (slot.inner.take(), slot.cache.clone())
     };
     if let Some(bytes) = cached {
@@ -308,7 +318,11 @@ impl Context {
   /// is 2 MiB; the [`body_limit`](crate::middleware::body_limit)
   /// middleware is a nicer way to change it.
   pub fn set_body_limit(&self, limit: usize) {
-    self.body.lock().expect("body lock poisoned").limit = limit;
+    self
+      .body
+      .lock()
+      .unwrap_or_else(std::sync::PoisonError::into_inner)
+      .limit = limit;
   }
 
   fn header_str(&self, name: &str) -> Option<String> {

@@ -73,6 +73,35 @@ Performance polish round two (no public API changes).
   on the serialization path. Findings recorded in
   `docs/performance-notes.md`.
 
+## [1.0.0-rc.5] - 2026-09-17
+
+Full code-health audit round: tool scan (pedantic clippy, cargo audit)
+plus a manual pass over every module. All findings fixed with regression
+tests.
+
+### Fixed
+
+- `MethodRouter`: registering the same method twice now makes the last
+  handler win (an assoc-list refactor had accidentally made the first
+  registration win).
+- `Context::json` / `form`: the content-type check is case-insensitive
+  (`Application/JSON` was incorrectly rejected).
+- `gzip()` no longer compresses `206 Partial Content` responses
+  (compression corrupts `Content-Range` semantics) and honors
+  `Accept-Encoding: gzip;q=0` (explicit refusal).
+- CORS origin matching is case-insensitive (scheme/host are
+  case-insensitive per URL semantics).
+- Lock-poisoning recovery in the body cache and cookie queue: a panicked
+  handler can no longer turn later requests on the same connection into
+  lock panics.
+
+### Security
+
+- Updated `time` to 0.3.47 (RUSTSEC-2026-0009, DoS via stack exhaustion).
+- Replaced the unmaintained `rustls-pemfile` with `rustls-pki-types`'s
+  built-in PEM loading (RUSTSEC-2025-0134); `tls` feature behavior is
+  unchanged.
+
 ## [0.6.0] - 2026-09-17
 
 ### Added
