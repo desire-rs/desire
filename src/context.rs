@@ -37,7 +37,7 @@ pub struct Context {
   // can drain the extension regardless of features.
   #[cfg_attr(not(feature = "ws"), allow(dead_code))]
   on_upgrade: Mutex<Option<hyper::upgrade::OnUpgrade>>,
-  cookies_out: Arc<Mutex<Vec<Cookie<'static>>>>,
+  cookies_out: Arc<crate::app::CookieJar>,
   state: Arc<StateMap>,
   remote_addr: Option<SocketAddr>,
 }
@@ -60,7 +60,7 @@ impl Context {
     state: Arc<StateMap>,
     remote_addr: Option<SocketAddr>,
     on_upgrade: Option<hyper::upgrade::OnUpgrade>,
-    cookies_out: Arc<Mutex<Vec<Cookie<'static>>>>,
+    cookies_out: Arc<crate::app::CookieJar>,
   ) -> Self {
     Context {
       method,
@@ -363,11 +363,7 @@ impl Context {
   /// To clear a cookie, queue a removal:
   /// `Cookie::build("session").removal()`.
   pub fn set_cookie(&self, cookie: Cookie<'static>) {
-    self
-      .cookies_out
-      .lock()
-      .expect("cookie lock poisoned")
-      .push(cookie);
+    self.cookies_out.queue(cookie);
   }
 
   /// Read a request cookie.

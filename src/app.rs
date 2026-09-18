@@ -2,6 +2,7 @@
 //! pipeline that ties everything together.
 
 use std::net::SocketAddr;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 
 use bytes::Bytes;
@@ -217,7 +218,7 @@ where
     .boxed_unsync();
   // hyper parks the upgrade handle in request extensions.
   let on_upgrade = parts.extensions.remove::<hyper::upgrade::OnUpgrade>();
-  let cookies_out: Arc<Mutex<Vec<cookie::Cookie<'static>>>> = Arc::default();
+  let cookies_out: Arc<CookieJar> = Arc::default();
   let method = parts.method;
   // Borrow the path straight out of the request parts — no copy.
   let matched = app.matcher.at(parts.uri.path());
@@ -277,7 +278,7 @@ where
       };
 
       let mut hyper_res = response.into_hyper();
-      apply_set_cookies(&mut hyper_res, &cookies_out);
+      cookies_out.apply(&mut hyper_res);
       if method == Method::HEAD {
         *hyper_res.body_mut() = body::empty();
       }
@@ -308,21 +309,50 @@ where
         Err(err) => err.into_response(),
       };
       let mut hyper_res = response.into_hyper();
-      apply_set_cookies(&mut hyper_res, &cookies_out);
+      cookies_out.apply(&mut hyper_res);
       hyper_res
     }
   }
 }
 
-/// Drain the request's queued `Set-Cookie` values onto the response.
-fn apply_set_cookies(
-  res: &mut crate::types::HyperResponse,
-  cookies_out: &Mutex<Vec<cookie::Cookie<'static>>>,
-) {
-  let jar = cookies_out.lock().expect("cookie lock poisoned");
-  for cookie in jar.iter() {
-    if let Ok(value) = hyper::header::HeaderValue::from_str(&cookie.to_string()) {
-      res.headers_mut().append(hyper::header::SET_COOKIE, value);
+/// Per-request queue of `Set-Cookie` values. Handlers only hold
+/// `&Context` while the response is built later, so the queue is shared
+/// with the dispatcher; the `non_empty` flag lets cookie-less requests
+/// skip the mutex entirely.
+pub(crate) struct CookieJar {
+  queue: Mutex<Vec<cookie::Cookie<'static>>>,
+  non_empty: AtomicBool,
+}
+
+impl Default for CookieJar {
+  fn default() -> Self {
+    CookieJar {
+      queue: Mutex::new(Vec::new()),
+      non_empty: AtomicBool::new(false),
+    }
+  }
+}
+
+impl CookieJar {
+  pub fn queue(&self, cookie: cookie::Cookie<'static>) {
+    self
+      .queue
+      .lock()
+      .expect("cookie lock poisoned")
+      .push(cookie);
+    self.non_empty.store(true, Ordering::Release);
+  }
+
+  /// Drain the queued cookies onto the response.
+  pub fn apply(&self, res: &mut crate::types::HyperResponse) {
+    if !self.non_empty.load(Ordering::Acquire) {
+      return;
+    }
+    let jar = self.queue.lock().expect("cookie lock poisoned");
+    for cookie in jar.iter() {
+      if let Ok(value) = hyper::header::HeaderValue::from_str(&cookie.to_string()) {
+        res.headers_mut().append(hyper::header::SET_COOKIE, value);
+      }
     }
   }
 }

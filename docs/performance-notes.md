@@ -55,6 +55,18 @@ pressure on hot paths.
 - desire's own `dispatch` registers only a handful of samples after the
   rc.2/rc.3 work.
 
+## rc.4 polish: transport + cookie fast path
+
+- Accepted sockets now set `TCP_NODELAY` (hyper-util's auto builder does
+  not expose it): prevents Nagle/delayed-ACK stalls on real networks.
+  On loopback ab the effect is within noise (non-keepalive ~24k RPS,
+  keep-alive ~75k RPS both with and without) — it is a
+  production-correctness default, not a local benchmark win.
+- The per-request cookie queue gained a non-empty flag: cookie-less
+  requests (the majority) skip the mutex entirely.
+- `serde_json::to_vec` already pre-allocates 128 bytes — verified and
+  left alone (an example of checking before "optimizing").
+
 ## Decisions
 
 - `Next` owns the remaining chain (an `Arc`), so middleware futures stay

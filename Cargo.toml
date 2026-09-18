@@ -14,7 +14,7 @@ name = "desire"
 publish = true
 readme = "README.md"
 repository = "https://github.com/desire-rs/desire"
-version = "1.0.0-rc.3"
+version = "1.0.0-rc.4"
 rust-version = "1.85"
 
 include = [

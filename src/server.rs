@@ -154,6 +154,12 @@ impl Server {
               continue;
             }
           };
+          // Small request/response pairs suffer from Nagle + delayed-ACK
+          // interactions; hyper writes each response as one buffered
+          // flush, so immediate sends are what we want.
+          if let Err(e) = stream.set_nodelay(true) {
+            tracing::debug!(error = %e, "set_nodelay failed");
+          }
 
           // Server closed between the check and the acquire: None.
           let permit = match &semaphore {

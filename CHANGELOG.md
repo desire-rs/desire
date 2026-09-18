@@ -58,6 +58,21 @@ where noted).
   since rc.1, no public API changes. Methodology and profile findings in
   `docs/performance-notes.md`.
 
+## [1.0.0-rc.4] - 2026-09-17
+
+Performance polish round two (no public API changes).
+
+### Changed
+
+- Accepted sockets set `TCP_NODELAY`: prevents Nagle/delayed-ACK stalls
+  for small responses on real networks (hyper-util's auto builder does
+  not expose this).
+- The per-request cookie queue is guarded by a non-empty flag, so
+  cookie-less requests skip the mutex entirely.
+- Verified `serde_json::to_vec` already pre-allocates — no change needed
+  on the serialization path. Findings recorded in
+  `docs/performance-notes.md`.
+
 ## [0.6.0] - 2026-09-17
 
 ### Added
