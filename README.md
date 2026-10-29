@@ -8,6 +8,11 @@
 
 > A minimal and ergonomic Rust web framework, on hyper.
 
+<p align="center">
+  <img src="docs/assets/demo.gif" alt="desire live demo — server-sent events, WebSocket echo, multipart upload, unified response envelope" width="820">
+</p>
+<p align="center"><sub>Live demo: <code>cargo run --example demo --features ws</code></sub></p>
+
 ```rust
 use desire::prelude::*;
 
