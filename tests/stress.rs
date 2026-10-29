@@ -51,7 +51,7 @@ fn stress_app() -> App {
     )
     .route(
       "/cookie",
-      post(|mut ctx: Context| async move {
+      post(|ctx: Context| async move {
         ctx.set_cookie(desire::cookie::Cookie::build(("k", "v")).build());
         Ok::<_, Error>(Resp::ok(()))
       }),
